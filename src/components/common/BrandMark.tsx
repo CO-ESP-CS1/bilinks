@@ -6,11 +6,9 @@ import React from "react";
 
 type BrandMarkProps = {
   href?: string;
-  /** Affiche le libellé à côté de l’icône */
   showText?: boolean;
-  /** Panneau auth (fond sombre) vs barre latérale / header */
-  theme?: "sidebar" | "auth";
-  size?: "default" | "large";
+  theme?: "sidebar" | "auth" | "light";
+  size?: "default" | "large" | "xl";
   className?: string;
 };
 
@@ -21,30 +19,35 @@ export function BrandMark({
   size = "default",
   className = "",
 }: BrandMarkProps) {
-  const iconPx = size === "large" ? 48 : 32;
-  const textSize = size === "large" ? "text-xl" : "text-lg";
+  const iconPx = size === "xl" ? 56 : size === "large" ? 44 : 34;
+  const textSize = size === "xl" ? "text-2xl" : size === "large" ? "text-xl" : "text-base";
+
   const titleClass =
     theme === "auth"
       ? "text-white"
+      : theme === "light"
+      ? "text-gray-900"
       : "text-gray-900 dark:text-white";
-  const accentClass =
-    theme === "auth" ? "text-blue-200" : "text-brand-500";
+
+  const subtitleClass =
+    theme === "auth"
+      ? "text-amber-300"
+      : theme === "light"
+      ? "text-amber-600"
+      : "text-amber-500 dark:text-amber-400";
 
   const inner = (
-    <span className={`flex items-center gap-3 ${className}`}>
+    <span className={`flex items-center gap-2.5 ${className}`}>
       <Image
-        src="/images/logo/logo-icon.svg"
-        alt=""
+        src="/images/logo/bibliotech-logo.png"
+        alt="BiblioTech"
         width={iconPx}
         height={iconPx}
-        className="shrink-0"
+        className="shrink-0 rounded-lg"
       />
       {showText && (
-        <span
-          className={`whitespace-nowrap font-bold tracking-tight ${textSize} ${titleClass}`}
-        >
-          BiblioTech{" "}
-          <span className={accentClass}>Admin</span>
+        <span className={`whitespace-nowrap font-bold tracking-tight ${textSize} ${titleClass}`}>
+          Biblio<span className={subtitleClass}>Tech</span>
         </span>
       )}
     </span>

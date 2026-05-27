@@ -1,5 +1,5 @@
 "use client";
-import React from "react";
+import React, { useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSidebar } from "../context/SidebarContext";
@@ -70,37 +70,48 @@ const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const pathname = usePathname();
 
+  const navDelays = useMemo(() => {
+    const delays: { path: string; delay: number }[] = [];
+    let i = 0;
+    for (const section of adminNavSections) {
+      for (const item of section.items) {
+        delays.push({ path: item.path, delay: 50 + i * 35 });
+        i += 1;
+      }
+    }
+    return delays;
+  }, []);
+
+  const delayFor = (path: string) =>
+    navDelays.find((d) => d.path === path)?.delay ?? 0;
+
   return (
     <aside
-      className={`fixed mt-16 flex flex-col lg:mt-0 top-0 px-5 left-0 bg-white dark:bg-gray-900 dark:border-gray-800 text-gray-900 h-screen transition-all duration-300 ease-in-out z-50 border-r border-gray-200 
-        ${
-          isExpanded || isMobileOpen
+      className={`fixed top-0 left-0 z-50 mt-16 flex h-screen flex-col border-r border-gray-200 bg-white px-5 transition-all duration-300 ease-in-out dark:border-gray-800 dark:bg-gray-900 lg:mt-0 ${
+        isExpanded || isMobileOpen
+          ? "w-[290px]"
+          : isHovered
             ? "w-[290px]"
-            : isHovered
-              ? "w-[290px]"
-              : "w-[90px]"
-        }
-        ${isMobileOpen ? "translate-x-0" : "-translate-x-full"}
-        lg:translate-x-0`}
+            : "w-[90px]"
+      } ${isMobileOpen ? "translate-x-0" : "-translate-x-full"} lg:translate-x-0`}
       onMouseEnter={() => !isExpanded && setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
       <div
-        className={`py-8 flex  ${
+        className={`flex py-8 animate-slide-in-left ${
           !isExpanded && !isHovered ? "lg:justify-center" : "justify-start"
         }`}
       >
-        <BrandMark
-          showText={isExpanded || isHovered || isMobileOpen}
-        />
+        <BrandMark showText={isExpanded || isHovered || isMobileOpen} />
       </div>
-      <div className="flex flex-col overflow-y-auto duration-300 ease-linear no-scrollbar">
-        <nav className="mb-6">
+
+      <div className="no-scrollbar mb-6 flex flex-col overflow-y-auto duration-300 ease-linear">
+        <nav>
           <div className="flex flex-col gap-4">
             {adminNavSections.map((section) => (
               <div key={section.title}>
                 <h2
-                  className={`mb-4 text-xs uppercase flex leading-[20px] text-gray-400 ${
+                  className={`mb-4 flex text-xs uppercase leading-[20px] text-gray-400 ${
                     !isExpanded && !isHovered
                       ? "lg:justify-center"
                       : "justify-start"
@@ -112,32 +123,40 @@ const AppSidebar: React.FC = () => {
                     <HorizontaLDots />
                   )}
                 </h2>
-                <ul className="flex flex-col gap-4">
+                <ul className="flex flex-col gap-1.5">
                   {section.items.map((item) => {
                     const active = pathIsActive(item.path, pathname);
                     const showLabel =
                       isExpanded || isHovered || isMobileOpen;
+
                     return (
                       <li key={`${section.title}-${item.path}-${item.name}`}>
                         <Link
                           href={item.path}
-                          className={`menu-item group ${
-                            active
-                              ? "menu-item-active"
-                              : "menu-item-inactive"
+                          style={{ animationDelay: `${delayFor(item.path)}ms` }}
+                          className={`menu-item group animate-nav-item-in ${
+                            active ? "menu-item-active" : "menu-item-inactive"
                           }`}
                         >
+                          {active && (
+                            <span
+                              className="absolute top-1/2 left-0 h-7 w-1 -translate-y-1/2 rounded-r-full bg-brand-500 shadow-sm shadow-brand-500/40 transition-all duration-300"
+                              aria-hidden
+                            />
+                          )}
                           <span
-                            className={
+                            className={`transition-transform duration-200 group-hover:scale-110 ${
                               active
                                 ? "menu-item-icon-active"
                                 : "menu-item-icon-inactive"
-                            }
+                            }`}
                           >
                             {iconForItem(item)}
                           </span>
                           {showLabel && (
-                            <span className="menu-item-text">{item.name}</span>
+                            <span className="menu-item-text transition-opacity duration-200">
+                              {item.name}
+                            </span>
                           )}
                         </Link>
                       </li>

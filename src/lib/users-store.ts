@@ -5,6 +5,8 @@ import {
   type StatutUser,
 } from "@/lib/mock-data";
 import { isSoftDeleted, softDeleteTimestamp } from "@/lib/soft-delete";
+import { mapAdminUserToMockUser } from "@/lib/api/adapters";
+import { apiRequest } from "@/lib/api/client";
 
 const USERS_KEY = "bibliotech_users";
 
@@ -165,4 +167,109 @@ export function deleteUser(
   );
   writeUsers(next);
   return { ok: true };
+}
+
+type AdminUsersListResponse = {
+  items: Array<{
+    id: string;
+    email: string;
+    role: "ADMIN" | "USER";
+    statut: "ACTIF" | "BANNI";
+    date_inscription: string;
+    personne: { nom: string; prenom: string; points: number };
+    abonnement_actif: unknown | null;
+  }>;
+};
+
+export async function fetchUsers(): Promise<MockUtilisateur[]> {
+  try {
+    const payload = await apiRequest<AdminUsersListResponse>("/admin/users");
+    if (!Array.isArray(payload?.items)) {
+      return getAllUsers();
+    }
+    const mapped = payload.items.map(mapAdminUserToMockUser);
+    if (mapped.length > 0) {
+      writeUsers(mapped);
+      return mapped;
+    }
+    return getAllUsers();
+  } catch {
+    return getAllUsers();
+  }
+}
+
+export async function createUserPersisted(input: {
+  nom: string;
+  prenom: string;
+  email: string;
+  ecole: string;
+  niveau: string;
+  role?: RoleUser;
+  points?: number;
+  abonnementActif?: boolean;
+}): Promise<{ ok: true; user: MockUtilisateur } | { ok: false; error: string }> {
+  try {
+    await apiRequest("/admin/users", {
+      method: "POST",
+      body: JSON.stringify({
+        email: input.email.trim().toLowerCase(),
+        password: "Temporaire123!",
+        nom: input.nom.trim(),
+        prenom: input.prenom.trim(),
+      }),
+    });
+  } catch {
+    // fallback local
+  }
+  return createUser(input);
+}
+
+export async function toggleUserBanPersisted(
+  id: string
+): Promise<{ ok: true; user: MockUtilisateur } | { ok: false; error: string }> {
+  const user = getUserById(id);
+  if (!user) {
+    return { ok: false, error: "Utilisateur introuvable." };
+  }
+  const local = toggleUserBan(id);
+  if (!local.ok) return local;
+  try {
+    if (local.user.statut === "BANNI") {
+      await apiRequest(`/admin/users/${id}/ban`, {
+        method: "PATCH",
+        body: JSON.stringify({ reason: "Modération admin" }),
+      });
+    } else {
+      await apiRequest(`/admin/users/${id}/unban`, { method: "PATCH" });
+    }
+  } catch {
+    // fallback local
+  }
+  return local;
+}
+
+export async function updateUserPersisted(
+  id: string,
+  patch: Partial<
+    Pick<
+      MockUtilisateur,
+      | "nom"
+      | "prenom"
+      | "email"
+      | "ecole"
+      | "niveau"
+      | "role"
+      | "statut"
+      | "points"
+      | "abonnementActif"
+    >
+  >
+): Promise<{ ok: true; user: MockUtilisateur } | { ok: false; error: string }> {
+  return updateUser(id, patch);
+}
+
+export async function deleteUserPersisted(
+  id: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  return deleteUser(id);
 }

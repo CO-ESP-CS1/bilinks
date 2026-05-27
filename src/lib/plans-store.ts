@@ -1,5 +1,7 @@
 import { mockPlans, type MockPlanTarifaire, type StatutPlanTarifaire } from "@/lib/mock-data";
 import { isSoftDeleted, softDeleteTimestamp } from "@/lib/soft-delete";
+import { apiRequest } from "@/lib/api/client";
+import { mapAdminPlanToMockPlan } from "@/lib/api/adapters";
 
 const PLANS_KEY = "bibliotech_plans";
 
@@ -169,4 +171,76 @@ export function getPlanLabel(code: string): string {
     ANNUEL: "Annuel",
   };
   return fallback[code] ?? code;
+}
+
+type AdminPlansResponse = Array<{
+  id: string;
+  plan: string;
+  prix: number;
+  devise: string;
+  duree_jours: number;
+  statut: "ACTIF" | "INACTIF";
+}>;
+
+export async function fetchPlansPersisted(): Promise<MockPlanTarifaire[]> {
+  try {
+    const rows = await apiRequest<AdminPlansResponse>("/admin/plans");
+    if (!Array.isArray(rows)) return getAllPlans();
+    const mapped = rows.map(mapAdminPlanToMockPlan);
+    if (mapped.length > 0) {
+      writePlans(mapped);
+      return mapped;
+    }
+    return getAllPlans();
+  } catch {
+    return getAllPlans();
+  }
+}
+
+export async function createPlanPersisted(input: {
+  nom: string;
+  code?: string;
+  prix: number;
+  dureeJours: number;
+  statut?: StatutPlanTarifaire;
+}): Promise<MockPlanTarifaire> {
+  try {
+    const planCode = input.code?.trim() || slugifyPlanCode(input.nom);
+    await apiRequest("/admin/plans", {
+      method: "POST",
+      body: JSON.stringify({
+        plan: planCode,
+        prix: input.prix,
+        devise: "XAF",
+        duree_jours: input.dureeJours,
+        statut: input.statut ?? "ACTIF",
+      }),
+    });
+  } catch {
+    // fallback local
+  }
+  return createPlan(input);
+}
+
+export async function updatePlanPersisted(
+  id: string,
+  patch: Partial<
+    Pick<MockPlanTarifaire, "nom" | "prix" | "dureeJours" | "statut">
+  >
+): Promise<MockPlanTarifaire | null> {
+  const localUpdated = updatePlan(id, patch);
+  if (!localUpdated) return null;
+  try {
+    await apiRequest(`/admin/plans/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({
+        prix: patch.prix,
+        duree_jours: patch.dureeJours,
+        statut: patch.statut,
+      }),
+    });
+  } catch {
+    // fallback local
+  }
+  return localUpdated;
 }

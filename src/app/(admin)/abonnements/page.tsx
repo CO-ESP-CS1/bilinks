@@ -14,14 +14,19 @@ import {
 } from "@/lib/mock-data";
 import { formatXaf } from "@/lib/abonnements-utils";
 import {
-  createPlan,
+  createPlanPersisted,
   deletePlan,
+  fetchPlansPersisted,
   getAllPlans,
   getPlanLabel,
   slugifyPlanCode,
-  updatePlan,
+  updatePlanPersisted,
 } from "@/lib/plans-store";
 import { isSoftDeleted, softDeleteTimestamp } from "@/lib/soft-delete";
+import {
+  cancelSubscriptionPersisted,
+  fetchSubscriptionsPersisted,
+} from "@/lib/subscriptions-store";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import Button from "@/components/ui/button/Button";
@@ -132,7 +137,14 @@ export default function AbonnementsPage() {
   const [formPlan, setFormPlan] = useState<PlanFormState>(emptyPlanForm);
 
   React.useEffect(() => {
-    setPlans(getAllPlans());
+    const load = async () => {
+      setPlans(await fetchPlansPersisted());
+      const apiSubs = await fetchSubscriptionsPersisted();
+      if (apiSubs.length > 0) {
+        setAbonnements(apiSubs);
+      }
+    };
+    void load();
   }, []);
 
   const reinitialiserFiltres = useCallback(() => {
@@ -181,8 +193,8 @@ export default function AbonnementsPage() {
     });
   }, [abonnementsActifs, filtreStatut, filtrePlan, filtreType]);
 
-  const rafraichirPlans = useCallback(() => {
-    setPlans(getAllPlans());
+  const rafraichirPlans = useCallback(async () => {
+    setPlans(await fetchPlansPersisted());
   }, []);
 
   const ouvrirAjout = () => {
@@ -272,7 +284,7 @@ export default function AbonnementsPage() {
         return;
       }
       deletePlan(plan.id);
-      rafraichirPlans();
+      void rafraichirPlans();
       toast.success(`Plan « ${plan.nom} » supprimé (soft delete).`);
       setDialog(null);
       return;
@@ -300,12 +312,13 @@ export default function AbonnementsPage() {
           row.id === abo.id ? { ...row, statut: "ANNULE" as const } : row
         )
       );
+      void cancelSubscriptionPersisted(abo.id);
       toast.success(`Abonnement de ${abo.utilisateurNom} annulé.`);
     }
     setDialog(null);
   };
 
-  const enregistrerPlan = (e: React.FormEvent) => {
+  const enregistrerPlan = async (e: React.FormEvent) => {
     e.preventDefault();
     const prix = Number(formPlan.prix);
     const dureeJours = Number(formPlan.dureeJours);
@@ -319,7 +332,7 @@ export default function AbonnementsPage() {
     }
     try {
       if (modalPlan === "modifier" && planEdition) {
-        updatePlan(planEdition.id, {
+        await updatePlanPersisted(planEdition.id, {
           nom: formPlan.nom.trim(),
           prix,
           dureeJours,
@@ -329,7 +342,7 @@ export default function AbonnementsPage() {
       } else {
         const code =
           formPlan.code.trim() || slugifyPlanCode(formPlan.nom);
-        createPlan({
+        await createPlanPersisted({
           nom: formPlan.nom.trim(),
           code,
           prix,
@@ -338,7 +351,7 @@ export default function AbonnementsPage() {
         });
         toast.success("Plan tarifaire créé.");
       }
-      rafraichirPlans();
+      await rafraichirPlans();
       setModalPlan(null);
       setPlanEdition(null);
     } catch (err) {

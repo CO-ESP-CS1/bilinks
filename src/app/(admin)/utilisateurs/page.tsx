@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useMemo, useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Breadcrumb, adminCrumb } from "@/components/Breadcrumb";
@@ -11,11 +11,12 @@ import {
   type RoleUser,
 } from "@/lib/mock-data";
 import {
-  createUser,
-  deleteUser,
+  createUserPersisted,
+  deleteUserPersisted,
+  fetchUsers,
   getAllUsers,
-  toggleUserBan,
-  updateUser,
+  toggleUserBanPersisted,
+  updateUserPersisted,
 } from "@/lib/users-store";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
@@ -205,9 +206,13 @@ export default function UtilisateursPage() {
   const [dialogCible, setDialogCible] = useState<DialogCible | null>(null);
   const [form, setForm] = useState<UserFormState>(emptyForm);
 
-  const recharger = useCallback(() => {
-    setUtilisateurs(getAllUsers());
+  const recharger = useCallback(async () => {
+    setUtilisateurs(await fetchUsers());
   }, []);
+
+  useEffect(() => {
+    void recharger();
+  }, [recharger]);
 
   const reinitialiserFiltres = useCallback(() => {
     setSearch("");
@@ -261,7 +266,7 @@ export default function UtilisateursPage() {
     });
   };
 
-  const soumettreForm = (e: React.FormEvent) => {
+  const soumettreForm = async (e: React.FormEvent) => {
     e.preventDefault();
     const points = parseInt(form.points, 10) || 0;
     const payload = {
@@ -276,7 +281,7 @@ export default function UtilisateursPage() {
     };
 
     if (editCible) {
-      const result = updateUser(editCible.id, payload);
+      const result = await updateUserPersisted(editCible.id, payload);
       if (!result.ok) {
         toast.error(result.error);
         return;
@@ -284,7 +289,7 @@ export default function UtilisateursPage() {
       toast.success("Utilisateur mis à jour.");
       setEditCible(null);
     } else {
-      const result = createUser(payload);
+      const result = await createUserPersisted(payload);
       if (!result.ok) {
         toast.error(result.error);
         return;
@@ -293,14 +298,14 @@ export default function UtilisateursPage() {
       setModalCreate(false);
     }
     setForm(emptyForm);
-    recharger();
+    await recharger();
   };
 
-  const confirmerDialog = () => {
+  const confirmerDialog = async () => {
     if (!dialogCible) return;
     const { user, type } = dialogCible;
     if (type === "ban") {
-      const result = toggleUserBan(user.id);
+      const result = await toggleUserBanPersisted(user.id);
       if (!result.ok) {
         toast.error(result.error);
       } else {
@@ -311,7 +316,7 @@ export default function UtilisateursPage() {
         );
       }
     } else {
-      const result = deleteUser(user.id);
+      const result = await deleteUserPersisted(user.id);
       if (!result.ok) {
         toast.error(result.error);
       } else {
@@ -321,7 +326,7 @@ export default function UtilisateursPage() {
       }
     }
     setDialogCible(null);
-    recharger();
+    await recharger();
   };
 
   return (
