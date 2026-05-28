@@ -63,7 +63,7 @@ export function CoverUploader({ value, onChange, bookTitle = "Aperçu" }: CoverU
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-6 lg:flex-row">
+      <div className="flex flex-col gap-6">
         {/* Zone principale */}
         <div className="shrink-0">
           <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">

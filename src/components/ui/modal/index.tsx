@@ -1,5 +1,6 @@
 "use client";
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 
 interface ModalProps {
   isOpen: boolean;
@@ -19,6 +20,11 @@ export const Modal: React.FC<ModalProps> = ({
   isFullscreen = false,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
+  const [isMounted, setIsMounted] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   useEffect(() => {
     const handleEscape = (event: KeyboardEvent) => {
@@ -37,35 +43,43 @@ export const Modal: React.FC<ModalProps> = ({
   }, [isOpen, onClose]);
 
   useEffect(() => {
+    const body = document.body;
+    const html = document.documentElement;
+
     if (isOpen) {
-      document.body.style.overflow = "hidden";
+      body.style.overflow = "hidden";
+      html.style.overflow = "hidden";
     } else {
-      document.body.style.overflow = "unset";
+      body.style.overflow = "";
+      html.style.overflow = "";
     }
 
     return () => {
-      document.body.style.overflow = "unset";
+      body.style.overflow = "";
+      html.style.overflow = "";
     };
   }, [isOpen]);
 
-  if (!isOpen) return null;
+  if (!isOpen || !isMounted) return null;
 
   const contentClasses = isFullscreen
-    ? "w-full h-full"
-    : "relative w-full rounded-3xl bg-white  dark:bg-gray-900";
+    ? "h-full w-full no-scrollbar"
+    : "relative w-full max-h-[calc(100dvh-2rem)] overflow-y-auto no-scrollbar rounded-3xl bg-white dark:bg-gray-900";
 
-  return (
-    <div className="modal fixed inset-0 z-99999 flex items-center justify-center overflow-y-auto p-3 sm:p-4">
+  return createPortal(
+    <div className="modal fixed inset-0 z-99999 flex items-center justify-center overflow-hidden p-3 sm:p-4">
       {!isFullscreen && (
         <div
-          className="animate-modal-backdrop fixed inset-0 h-full w-full bg-gray-400/50 backdrop-blur-[32px]"
+          className="animate-modal-backdrop fixed inset-0 h-full w-full bg-gray-900/45 backdrop-blur-[10px]"
           onClick={onClose}
         ></div>
       )}
       <div
         ref={modalRef}
-        className={`animate-modal-panel ${contentClasses}  ${className}`}
+        className={`animate-modal-panel ${contentClasses} ${className}`}
         onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
       >
         {showCloseButton && (
           <button
@@ -88,8 +102,12 @@ export const Modal: React.FC<ModalProps> = ({
             </svg>
           </button>
         )}
-        <div>{children}</div>
+        <div className={isFullscreen ? "h-full w-full overflow-y-auto no-scrollbar" : ""}>
+          {children}
+        </div>
       </div>
     </div>
+    ,
+    document.body
   );
 };

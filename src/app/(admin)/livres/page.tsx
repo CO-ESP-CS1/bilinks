@@ -273,7 +273,7 @@ export default function LivresPage() {
       <Modal
         isOpen={modalOuvert}
         onClose={() => setModalOuvert(false)}
-        className="max-h-[90vh] w-full max-w-4xl overflow-y-auto p-6 sm:p-8 lg:p-10"
+        className="w-full max-w-xl p-6 sm:p-8"
       >
         <AjouterLivreForm
           key={modalKey}
