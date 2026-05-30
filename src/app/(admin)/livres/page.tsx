@@ -32,6 +32,8 @@ import {
 import { EyeIcon, PencilIcon, BoxCubeIcon, DocsIcon } from "@/icons";
 import { BookCover } from "@/components/livres/BookCover";
 import { CoverUploader } from "@/components/livres/CoverUploader";
+import { BookFileUploader } from "@/components/livres/BookFileUploader";
+import { dataUrlToFile } from "@/lib/book-file";
 
 type StatutFiltre = "tous" | "publie" | "archive";
 type VueMode = "grille" | "tableau";
@@ -557,7 +559,7 @@ function TableauView({
 
 type FormErrors = Partial<
   Record<
-    "titre" | "auteurs" | "urlFichier" | "langue" | "bibliotheques",
+    "titre" | "auteurs" | "fichier" | "langue" | "bibliotheques",
     string
   >
 >;
@@ -575,7 +577,7 @@ function AjouterLivreForm({
   const [auteurs, setAuteurs] = useState("");
   const [isbn, setIsbn] = useState("");
   const [resume, setResume] = useState("");
-  const [urlFichier, setUrlFichier] = useState("");
+  const [fichierLivre, setFichierLivre] = useState<File | null>(null);
   const [couverturePreview, setCouverturePreview] = useState<string | null>(null);
   const [langue, setLangue] = useState("");
   const [annee, setAnnee] = useState("");
@@ -592,20 +594,27 @@ function AjouterLivreForm({
     if (auteursParsed.length === 0) {
       next.auteurs = "Indiquez au moins un auteur (séparés par des virgules).";
     }
-    if (!urlFichier.trim()) next.urlFichier = "L'URL du fichier est obligatoire.";
+    if (!fichierLivre) {
+      next.fichier = "Sélectionnez le fichier du livre (PDF, EPUB ou MOBI).";
+    }
     if (!langue) next.langue = "La langue est obligatoire.";
     if (bibliothequesIds.length === 0) {
       next.bibliotheques = "Sélectionnez au moins une bibliothèque.";
     }
     setErrors(next);
     return Object.keys(next).length === 0;
-  }, [titre, auteurs, urlFichier, langue, bibliothequesIds]);
+  }, [titre, auteurs, fichierLivre, langue, bibliothequesIds]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
     const auteursParsed = auteurs.split(",").map((a) => a.trim()).filter(Boolean);
+    const couvertureFile =
+      couverturePreview?.startsWith("data:")
+        ? dataUrlToFile(couverturePreview, "couverture.jpg")
+        : undefined;
+
     await createLivrePersisted({
       titre: titre.trim(),
       auteurs: auteursParsed,
@@ -614,6 +623,10 @@ function AjouterLivreForm({
       nombrePages: nbPages === "" ? null : Number(nbPages),
       categorieIds: categoriesIds,
       couvertureUrl: couverturePreview || null,
+      couvertureFile,
+      fichier: fichierLivre ?? undefined,
+      isbn: isbn.trim() || undefined,
+      resume: resume.trim() || undefined,
       statut,
     });
     onSuccess();
@@ -744,16 +757,17 @@ function AjouterLivreForm({
           </div>
 
           <div>
-            <Label htmlFor="livre-url-fichier">URL du fichier (stockage S3) *</Label>
-            <Input
-              id="livre-url-fichier"
-              type="url"
-              placeholder="https://storage.example.com/livres/…"
-              onChange={(e) => setUrlFichier(e.target.value)}
-              error={!!errors.urlFichier}
+            <Label>Fichier du livre *</Label>
+            <p className="mb-2 text-[11px] text-gray-400">
+              Bibliothèque interne : sélectionnez le PDF (ou EPUB/MOBI) sur votre ordinateur.
+            </p>
+            <BookFileUploader
+              value={fichierLivre}
+              onChange={setFichierLivre}
+              error={!!errors.fichier}
             />
-            {errors.urlFichier && (
-              <p className="mt-1.5 text-xs text-error-500">{errors.urlFichier}</p>
+            {errors.fichier && (
+              <p className="mt-1.5 text-xs text-error-500">{errors.fichier}</p>
             )}
           </div>
 

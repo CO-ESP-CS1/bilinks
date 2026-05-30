@@ -159,6 +159,10 @@ export async function createLivrePersisted(input: {
   statut?: StatutLivre;
   categorieIds?: string[];
   couvertureUrl?: string | null;
+  fichier?: File;
+  couvertureFile?: File;
+  isbn?: string;
+  resume?: string;
 }): Promise<MockLivre> {
   try {
     const form = new FormData();
@@ -173,6 +177,18 @@ export async function createLivrePersisted(input: {
     }
     if (input.statut) {
       form.set("statut", input.statut);
+    }
+    if (input.isbn?.trim()) {
+      form.set("isbn", input.isbn.trim());
+    }
+    if (input.resume?.trim()) {
+      form.set("resume", input.resume.trim());
+    }
+    if (input.fichier) {
+      form.append("file", input.fichier, input.fichier.name);
+    }
+    if (input.couvertureFile) {
+      form.append("couverture", input.couvertureFile, input.couvertureFile.name);
     }
     await apiRequest("/admin/books", { method: "POST", body: form });
     return createLivre(input);
@@ -195,7 +211,11 @@ export async function updateLivrePersisted(
       | "statut"
       | "couvertureUrl"
     >
-  > & { categorieIds?: string[] }
+  > & {
+    categorieIds?: string[];
+    fichier?: File;
+    couvertureFile?: File;
+  }
 ): Promise<MockLivre | null> {
   const localUpdated = updateLivre(id, patch);
   if (!localUpdated) return null;
@@ -210,6 +230,12 @@ export async function updateLivrePersisted(
       form.set("nombre_pages", String(patch.nombrePages));
     }
     if (patch.statut !== undefined) form.set("statut", patch.statut);
+    if (patch.fichier) {
+      form.append("file", patch.fichier, patch.fichier.name);
+    }
+    if (patch.couvertureFile) {
+      form.append("couverture", patch.couvertureFile, patch.couvertureFile.name);
+    }
     await apiRequest(`/admin/books/${id}`, { method: "PATCH", body: form });
   } catch {
     // fallback local already applied
