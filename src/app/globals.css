@@ -836,6 +836,130 @@ span.flatpickr-weekday,
   animation: float-gentle 4s ease-in-out infinite;
 }
 
+/* ─── Auth : logo B LINKS ─── */
+
+@keyframes brand-logo-enter {
+  0% {
+    opacity: 0;
+    transform: scale(0.2) rotate(-540deg);
+  }
+  65% {
+    opacity: 1;
+    transform: scale(1.08) rotate(12deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes brand-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes brand-logo-wobble {
+  0%,
+  100% {
+    transform: rotate(-4deg) scale(1);
+  }
+  50% {
+    transform: rotate(4deg) scale(1.03);
+  }
+}
+
+@keyframes brand-orbit {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes brand-orbit-reverse {
+  from {
+    transform: rotate(360deg);
+  }
+  to {
+    transform: rotate(0deg);
+  }
+}
+
+@keyframes brand-pulse-ring {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+}
+
+@keyframes brand-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 24px rgba(251, 191, 36, 0.15),
+      0 8px 32px rgba(15, 39, 68, 0.4);
+  }
+  50% {
+    box-shadow:
+      0 0 40px rgba(251, 191, 36, 0.3),
+      0 12px 40px rgba(15, 39, 68, 0.5);
+  }
+}
+
+@keyframes brand-bg-float {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  50% {
+    transform: translate(8px, -12px) scale(1.05);
+  }
+}
+
+@utility animate-brand-logo-enter {
+  animation: brand-logo-enter 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@utility animate-brand-logo-spin {
+  animation: brand-logo-spin 10s linear infinite;
+  animation-delay: 1.1s;
+}
+
+@utility animate-brand-logo-wobble {
+  animation: brand-logo-wobble 5s ease-in-out infinite;
+  animation-delay: 1.1s;
+}
+
+@utility animate-brand-orbit {
+  animation: brand-orbit 18s linear infinite;
+}
+
+@utility animate-brand-orbit-reverse {
+  animation: brand-orbit-reverse 24s linear infinite;
+}
+
+@utility animate-brand-pulse-ring {
+  animation: brand-pulse-ring 2.4s ease-out infinite;
+}
+
+@utility animate-brand-glow {
+  animation: brand-glow 3s ease-in-out infinite;
+  animation-delay: 1.1s;
+}
+
+@utility animate-brand-bg-float {
+  animation: brand-bg-float 8s ease-in-out infinite;
+}
+
 /* ─── Admin : cartes & pages ─── */
 
 @utility admin-card {
@@ -931,6 +1055,14 @@ span.flatpickr-weekday,
   .animate-modal-panel,
   .animate-float-gentle,
   .animate-shimmer,
+  .animate-brand-logo-enter,
+  .animate-brand-logo-spin,
+  .animate-brand-logo-wobble,
+  .animate-brand-orbit,
+  .animate-brand-orbit-reverse,
+  .animate-brand-pulse-ring,
+  .animate-brand-glow,
+  .animate-brand-bg-float,
   .admin-progress-bar {
     animation: none !important;
   }

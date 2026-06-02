@@ -1,10 +1,12 @@
-"use client";
+﻿"use client";
 
 import Checkbox from "@/components/form/input/Checkbox";
 import Input from "@/components/form/input/InputField";
 import Label from "@/components/form/Label";
 import { EyeCloseIcon, EyeIcon } from "@/icons";
-import { BrandMark } from "@/components/common/BrandMark";
+import { BrandName } from "@/components/common/BrandMark";
+import { BrandLogoAnimated } from "@/components/auth/BrandLogoAnimated";
+import { BRAND_NAME, BRAND_TAGLINE } from "@/config/brand";
 import { useAuth } from "@/context/AuthContext";
 import {
   DEFAULT_ADMIN_EMAIL,
@@ -49,12 +51,18 @@ export default function SignInForm() {
     <div className="flex w-full flex-1 flex-col justify-center px-6 py-12 lg:w-1/2 lg:px-16 xl:px-24">
       <div className="mx-auto w-full max-w-[420px]">
         {/* Logo */}
-        <div className="mb-10">
-          <BrandMark href="" showText theme="light" size="large" />
+        <div className="mb-10 flex items-center gap-3">
+          <BrandLogoAnimated size="large" variant="compact" />
+          <span
+            className="animate-fade-in-up text-xl font-bold tracking-tight text-gray-900 dark:text-white"
+            style={{ animationDelay: "0.25s" }}
+          >
+            <BrandName accentClassName="text-amber-500 dark:text-amber-400" />
+          </span>
         </div>
 
         {/* Titre */}
-        <div className="mb-8">
+        <div className="animate-fade-in-up mb-8" style={{ animationDelay: "0.35s" }}>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-3xl">
             Bon retour
           </h1>
@@ -64,7 +72,10 @@ export default function SignInForm() {
         </div>
 
         {/* Identifiants démo */}
-        <div className="mb-8 rounded-xl border border-amber-200/60 bg-amber-50/50 p-4 dark:border-amber-500/20 dark:bg-amber-500/5">
+        <div
+          className="animate-fade-in-up mb-8 rounded-xl border border-amber-200/60 bg-amber-50/50 p-4 dark:border-amber-500/20 dark:bg-amber-500/5"
+          style={{ animationDelay: "0.45s" }}
+        >
           <div className="flex items-start gap-3">
             <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-500/20">
               <svg className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -86,7 +97,11 @@ export default function SignInForm() {
         </div>
 
         {/* Formulaire */}
-        <form onSubmit={handleSubmit} className="space-y-5">
+        <form
+          onSubmit={handleSubmit}
+          className="animate-fade-in-up space-y-5"
+          style={{ animationDelay: "0.55s" }}
+        >
           <div>
             <Label htmlFor="signin-email">Adresse e-mail</Label>
             <Input
@@ -153,8 +168,11 @@ export default function SignInForm() {
         </form>
 
         {/* Footer */}
-        <p className="mt-8 text-center text-xs text-gray-400 dark:text-gray-500">
-          BiblioTech &copy; {new Date().getFullYear()} — Plateforme de lecture numérique
+        <p
+          className="animate-fade-in-up mt-8 text-center text-xs text-gray-400 dark:text-gray-500"
+          style={{ animationDelay: "0.65s" }}
+        >
+          {BRAND_NAME} &copy; {new Date().getFullYear()} — {BRAND_TAGLINE}
         </p>
       </div>
     </div>

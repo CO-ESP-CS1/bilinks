@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React from "react";
 import Link from "next/link";
@@ -10,7 +10,7 @@ export default function SupportPage() {
       <Breadcrumb items={adminCrumb("Support")} />
       <div>
         <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">
-          Support BiblioTech
+          Support B LINKS
         </h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           Aide, contact et ressources pour les administrateurs.

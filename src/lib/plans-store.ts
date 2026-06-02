@@ -1,4 +1,4 @@
-import { mockPlans, type MockPlanTarifaire, type StatutPlanTarifaire } from "@/lib/mock-data";
+﻿import { mockPlans, type MockPlanTarifaire, type StatutPlanTarifaire } from "@/lib/mock-data";
 import { isSoftDeleted, softDeleteTimestamp } from "@/lib/soft-delete";
 import { apiRequest } from "@/lib/api/client";
 import { mapAdminPlanToMockPlan } from "@/lib/api/adapters";

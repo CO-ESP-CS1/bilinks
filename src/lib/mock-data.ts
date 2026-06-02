@@ -1,5 +1,5 @@
-// ============================================================
-// MOCK DATA — BiblioTech Admin Dashboard
+﻿// ============================================================
+// MOCK DATA — B LINKS Admin Dashboard
 // Remplacer les fetch() par des appels API réels plus tard
 // ============================================================
 
@@ -119,7 +119,7 @@ export interface MockBibliotheque {
 }
 
 export const mockBibliotheques: MockBibliotheque[] = [
-  { id: "b1", nom: "Bibliothèque Principale COMEC", type: "INTERNE", statut: "ACTIVE", description: "Catalogue principal de BiblioTech", urlExterne: null, nbLivres: 284, deletedAt: null },
+  { id: "b1", nom: "Bibliothèque Principale COMEC", type: "INTERNE", statut: "ACTIVE", description: "Catalogue principal de B LINKS", urlExterne: null, nbLivres: 284, deletedAt: null },
   { id: "b2", nom: "OpenLibrary", type: "EXTERNE", statut: "ACTIVE", description: "Bibliothèque numérique gratuite mondiale", urlExterne: "https://openlibrary.org", nbLivres: 0, deletedAt: null },
   { id: "b3", nom: "Gallica — BnF", type: "EXTERNE", statut: "ACTIVE", description: "Bibliothèque numérique de la BnF", urlExterne: "https://gallica.bnf.fr", nbLivres: 0, deletedAt: null },
   { id: "b4", nom: "Fonds Africain", type: "INTERNE", statut: "ACTIVE", description: "Littérature africaine et ouvrages locaux", urlExterne: null, nbLivres: 47, deletedAt: null },
@@ -353,7 +353,7 @@ export const mockBadges: MockBadge[] = [
   {
     id: "bg1",
     nom: "Premier pas",
-    description: "Première connexion à BiblioTech",
+    description: "Première connexion à B LINKS",
     condition: "Créer un compte",
     rarete: "COMMUN",
     nbAttribues: 1847,

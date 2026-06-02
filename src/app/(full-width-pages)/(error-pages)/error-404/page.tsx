@@ -1,13 +1,13 @@
-import GridShape from "@/components/common/GridShape";
+﻿import GridShape from "@/components/common/GridShape";
 import { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import React from "react";
 
 export const metadata: Metadata = {
-  title: "Page introuvable — BiblioTech Admin",
+  title: "Page introuvable — B LINKS Admin",
 
-  description: "Page introuvable — BiblioTech Admin",
+  description: "Page introuvable — B LINKS Admin",
 };
 
 export default function Error404() {
@@ -47,7 +47,7 @@ export default function Error404() {
       </div>
       {/* <!-- Footer --> */}
       <p className="absolute text-sm text-center text-gray-500 -translate-x-1/2 bottom-6 left-1/2 dark:text-gray-400">
-        &copy; {new Date().getFullYear()} — BiblioTech Admin
+        &copy; {new Date().getFullYear()} — B LINKS Admin
       </p>
     </div>
   );

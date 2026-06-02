@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useMemo, useState, useCallback } from "react";
 import Link from "next/link";
@@ -137,7 +137,7 @@ function BibliothequeForm({
 
       <div className="mt-4 rounded-xl border border-blue-light-500/30 bg-blue-light-50 p-4 text-sm text-blue-light-700 dark:border-blue-light-500/20 dark:bg-blue-light-500/10 dark:text-blue-light-200">
         Les bibliothèques <strong>EXTERNES</strong> redirigent vers un catalogue
-        tiers : le volume de livres n&apos;est pas recensé dans BiblioTech.
+        tiers : le volume de livres n&apos;est pas recensé dans B LINKS.
       </div>
 
       <form onSubmit={submit} className="mt-6 space-y-4">

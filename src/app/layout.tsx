@@ -1,3 +1,4 @@
+import { BRAND_NAME } from "@/config/brand";
 import type { Metadata } from "next";
 import { Outfit } from "next/font/google";
 import "./globals.css";
@@ -11,7 +12,7 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "BiblioTech — Administration",
+  title: `${BRAND_NAME} — Administration`,
 };
 
 export default function RootLayout({
@@ -20,8 +21,18 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="fr">
-      <body className={`${outfit.className} dark:bg-gray-900`}>
+    <html lang="fr" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem("theme");if(t==="dark")document.documentElement.classList.add("dark");}catch(e){}})();`,
+          }}
+        />
+      </head>
+      <body
+        className={`${outfit.className} dark:bg-gray-900`}
+        suppressHydrationWarning
+      >
         <ThemeProvider>
           <AuthProvider>
             <SidebarProvider>

@@ -1,7 +1,7 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Paramètres du compte — BiblioTech Admin",
+  title: "Paramètres du compte — B LINKS Admin",
 };
 
 export default function Layout({ children }: { children: React.ReactNode }) {

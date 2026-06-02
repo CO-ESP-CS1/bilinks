@@ -1,4 +1,4 @@
-import { mockCategories, type MockCategorie } from "@/lib/mock-data";
+﻿import { mockCategories, type MockCategorie } from "@/lib/mock-data";
 import { isSoftDeleted, softDeleteTimestamp } from "@/lib/soft-delete";
 
 const CATEGORIES_KEY = "bibliotech_categories";

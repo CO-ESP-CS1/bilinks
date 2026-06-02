@@ -1,4 +1,4 @@
-import { isSoftDeleted, softDeleteTimestamp } from "@/lib/soft-delete";
+﻿import { isSoftDeleted, softDeleteTimestamp } from "@/lib/soft-delete";
 
 export type StatutAdmin = "ACTIF" | "SUSPENDU";
 
@@ -73,7 +73,7 @@ export function ensureDefaultAdmins(): AdminAccount[] {
       email: DEFAULT_ADMIN_EMAIL,
       password: DEFAULT_ADMIN_PASSWORD,
       prenom: "Administrateur",
-      nom: "BiblioTech",
+      nom: "B LINKS",
       fonction: "Responsable catalogue",
       localisation: "Brazzaville, Congo",
       avatarUrl: DEFAULT_AVATAR,
@@ -208,7 +208,7 @@ export function createAdmin(input: {
     email,
     password: input.password,
     prenom: input.prenom.trim() || "Admin",
-    nom: input.nom.trim() || "BiblioTech",
+    nom: input.nom.trim() || "B LINKS",
     fonction: "Administrateur",
     localisation: "Brazzaville, Congo",
     avatarUrl: DEFAULT_AVATAR,

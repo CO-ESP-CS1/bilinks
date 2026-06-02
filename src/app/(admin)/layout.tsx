@@ -1,8 +1,8 @@
-import type { Metadata } from "next";
+﻿import type { Metadata } from "next";
 import AdminLayoutClient from "./AdminLayoutClient";
 
 export const metadata: Metadata = {
-  title: "Tableau de bord — BiblioTech Admin",
+  title: "Tableau de bord — B LINKS Admin",
 };
 
 export default function AdminGroupLayout({

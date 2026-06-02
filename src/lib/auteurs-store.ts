@@ -1,4 +1,4 @@
-import { mockAuteurs, type MockAuteur } from "@/lib/mock-data";
+﻿import { mockAuteurs, type MockAuteur } from "@/lib/mock-data";
 import { isSoftDeleted, softDeleteTimestamp } from "@/lib/soft-delete";
 
 const AUTEURS_KEY = "bibliotech_auteurs";

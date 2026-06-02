@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useMemo } from "react";
 import dynamic from "next/dynamic";
@@ -114,7 +114,7 @@ export default function StatistiquesPage() {
             Statistiques
           </h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Analyses et tendances BiblioTech (données de démo)
+            Analyses et tendances B LINKS (données de démo)
           </p>
         </div>
       </div>

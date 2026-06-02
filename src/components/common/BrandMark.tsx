@@ -1,8 +1,23 @@
-"use client";
+﻿"use client";
 
+import { BRAND_NAME } from "@/config/brand";
 import Image from "next/image";
 import Link from "next/link";
 import React from "react";
+
+export function BrandName({
+  className = "",
+  accentClassName = "",
+}: {
+  className?: string;
+  accentClassName?: string;
+}) {
+  return (
+    <span className={className}>
+      B <span className={accentClassName}>LINKS</span>
+    </span>
+  );
+}
 
 type BrandMarkProps = {
   href?: string;
@@ -40,14 +55,14 @@ export function BrandMark({
     <span className={`flex items-center gap-2.5 ${className}`}>
       <Image
         src="/images/logo/bibliotech-logo.png"
-        alt="BiblioTech"
+        alt={BRAND_NAME}
         width={iconPx}
         height={iconPx}
         className="shrink-0 rounded-lg"
       />
       {showText && (
         <span className={`whitespace-nowrap font-bold tracking-tight ${textSize} ${titleClass}`}>
-          Biblio<span className={subtitleClass}>Tech</span>
+          <BrandName accentClassName={subtitleClass} />
         </span>
       )}
     </span>

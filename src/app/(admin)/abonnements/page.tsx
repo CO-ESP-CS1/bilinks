@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useMemo, useState, useCallback } from "react";
 import toast from "react-hot-toast";
@@ -368,7 +368,7 @@ export default function AbonnementsPage() {
             Abonnements
           </h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Plans tarifaires et suivi des abonnements BiblioTech
+            Plans tarifaires et suivi des abonnements B LINKS
           </p>
         </div>
         <Button onClick={ouvrirAjout} startIcon={<PlusIcon className="size-5" />}>

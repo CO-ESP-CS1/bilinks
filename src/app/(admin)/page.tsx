@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useMemo } from "react";
 import dynamic from "next/dynamic";
@@ -126,7 +126,7 @@ export default function Page() {
           Tableau de bord
         </h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Vue d&apos;ensemble BiblioTech — données de démonstration
+          Vue d&apos;ensemble B LINKS — données de démonstration
         </p>
       </div>
 

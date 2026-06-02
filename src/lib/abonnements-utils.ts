@@ -1,4 +1,4 @@
-import {
+﻿import {
   mockAbonnements,
   mockPaiements,
   type MockAbonnement,
@@ -12,7 +12,7 @@ export const PLAN_LABELS: Record<PlanType, string> = {
   ANNUEL: "Annuel",
 };
 
-/** Caractéristiques du plan personnel BiblioTech */
+/** Caractéristiques du plan personnel B LINKS */
 export const PLAN_CARACTERISTIQUES: Record<PlanType, string[]> = {
   HEBDOMADAIRE: [
     "Accès complet au catalogue pendant 7 jours",
@@ -58,7 +58,7 @@ export function getPlanCaracteristiques(code: string): string[] {
   const details = getPlanByCode(code);
   if (details) {
     return [
-      `Accès au catalogue BiblioTech`,
+      `Accès au catalogue B LINKS`,
       `Durée : ${details.dureeJours} jours`,
       `Tarif : ${formatXaf(details.prix)}`,
     ];

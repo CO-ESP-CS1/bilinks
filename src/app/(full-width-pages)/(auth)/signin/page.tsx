@@ -1,10 +1,10 @@
-import SignInForm from "@/components/auth/SignInForm";
+﻿import SignInForm from "@/components/auth/SignInForm";
 import { Metadata } from "next";
 import { Suspense } from "react";
 
 export const metadata: Metadata = {
-  title: "Connexion — BiblioTech Admin",
-  description: "Connexion à la console d'administration BiblioTech",
+  title: "Connexion — B LINKS Admin",
+  description: "Connexion à la console d'administration B LINKS",
 };
 
 export default function SignIn() {
