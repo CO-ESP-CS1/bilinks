@@ -123,7 +123,7 @@ export default function AccountSettingsPage() {
           Sessions
         </h2>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Gestion des connexions actives (à brancher sur votre API).
+          Gestion des connexions actives.
         </p>
         <ul className="mt-4 space-y-3 text-sm text-gray-600 dark:text-gray-400">
           <li className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-100 px-4 py-3 dark:border-white/[0.06]">

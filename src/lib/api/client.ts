@@ -1,5 +1,6 @@
+import { getApiBearerToken, notifyApiSessionExpired } from "@/lib/api/auth-token";
+
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL?.replace(/\/+$/, "") ?? "";
-const API_TOKEN = process.env.NEXT_PUBLIC_ADMIN_BEARER_TOKEN ?? "";
 
 export class ApiError extends Error {
   status: number;
@@ -10,6 +11,10 @@ export class ApiError extends Error {
     this.status = status;
     this.payload = payload;
   }
+}
+
+export function getApiBaseUrl(): string {
+  return API_BASE_URL;
 }
 
 export function isApiConfigured(): boolean {
@@ -29,15 +34,17 @@ export async function apiRequest<T>(
   init: RequestInit = {}
 ): Promise<T> {
   if (!isApiConfigured()) {
-    throw new Error("API non configurée (NEXT_PUBLIC_API_BASE_URL).");
+    throw new Error("Le serveur n'est pas configuré.");
   }
 
   const headers = new Headers(init.headers);
   if (!headers.has("Content-Type") && !(init.body instanceof FormData)) {
     headers.set("Content-Type", "application/json");
   }
-  if (API_TOKEN && !headers.has("Authorization")) {
-    headers.set("Authorization", `Bearer ${API_TOKEN}`);
+
+  const token = getApiBearerToken();
+  if (token && !headers.has("Authorization")) {
+    headers.set("Authorization", `Bearer ${token}`);
   }
 
   const response = await fetch(`${API_BASE_URL}${path}`, {
@@ -48,8 +55,11 @@ export async function apiRequest<T>(
 
   const payload = await parseBody(response);
   if (!response.ok) {
+    if (response.status === 401 && path.startsWith("/admin")) {
+      notifyApiSessionExpired();
+    }
     throw new ApiError(
-      typeof payload === "string" ? payload : "Erreur API.",
+      "request_failed",
       response.status,
       payload
     );
@@ -57,4 +67,3 @@ export async function apiRequest<T>(
 
   return payload as T;
 }
-

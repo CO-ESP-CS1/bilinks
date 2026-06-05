@@ -5,7 +5,10 @@ import Link from "next/link";
 import { useParams, notFound } from "next/navigation";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import type { MockAuteur } from "@/lib/mock-data";
-import { getAuteurById } from "@/lib/auteurs-store";
+import {
+  fetchAuteursPersisted,
+  getAuteurById,
+} from "@/lib/auteurs-store";
 import Button from "@/components/ui/button/Button";
 import Badge from "@/components/ui/badge/Badge";
 import { PencilIcon } from "@/icons";
@@ -38,8 +41,16 @@ export default function AuteurDetailPage() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    setAuteur(getAuteurById(id));
-    setLoaded(true);
+    let cancelled = false;
+    (async () => {
+      await fetchAuteursPersisted();
+      if (cancelled) return;
+      setAuteur(getAuteurById(id));
+      setLoaded(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   if (!loaded) {
@@ -110,6 +121,11 @@ export default function AuteurDetailPage() {
         <DetailItem label="Nom" value={auteur.nom} />
         <DetailItem label="Prénom" value={auteur.prenom || "—"} />
         <DetailItem label="Nombre de livres" value={String(auteur.nbLivres)} />
+        {auteur.bio ? (
+          <div className="sm:col-span-2 lg:col-span-3">
+            <DetailItem label="Bio" value={auteur.bio} />
+          </div>
+        ) : null}
         <DetailItem label="Identifiant" value={auteur.id} />
         {auteur.deletedAt && (
           <DetailItem

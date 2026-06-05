@@ -5,17 +5,18 @@ import toast from "react-hot-toast";
 import { Breadcrumb, adminCrumb } from "@/components/Breadcrumb";
 import { EmptyState } from "@/components/EmptyState";
 import {
-  mockAbonnements,
   type MockAbonnement,
   type MockPlanTarifaire,
+  type PlanType,
   type StatutAbonnement,
   type StatutPlanTarifaire,
   type TypeRenouvellement,
 } from "@/lib/mock-data";
 import { formatXaf } from "@/lib/abonnements-utils";
+import { isApiConfigured } from "@/lib/api/client";
 import {
   createPlanPersisted,
-  deletePlan,
+  deletePlanPersisted,
   fetchPlansPersisted,
   getAllPlans,
   getPlanLabel,
@@ -29,6 +30,7 @@ import {
 } from "@/lib/subscriptions-store";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
+import TextArea from "@/components/form/input/TextArea";
 import Button from "@/components/ui/button/Button";
 import Badge from "@/components/ui/badge/Badge";
 import { Modal } from "@/components/ui/modal";
@@ -117,9 +119,7 @@ type DialogCible =
   | { type: "supprimerPlan"; plan: MockPlanTarifaire };
 
 export default function AbonnementsPage() {
-  const [abonnements, setAbonnements] = useState<MockAbonnement[]>(() =>
-    mockAbonnements.map((a) => ({ ...a, deletedAt: a.deletedAt ?? null }))
-  );
+  const [abonnements, setAbonnements] = useState<MockAbonnement[]>([]);
   const [plans, setPlans] = useState<MockPlanTarifaire[]>([]);
   const [filtreStatut, setFiltreStatut] = useState<"tous" | StatutAbonnement>(
     "tous"
@@ -135,17 +135,38 @@ export default function AbonnementsPage() {
   const [modalPlan, setModalPlan] = useState<"creer" | "modifier" | null>(null);
   const [planEdition, setPlanEdition] = useState<MockPlanTarifaire | null>(null);
   const [formPlan, setFormPlan] = useState<PlanFormState>(emptyPlanForm);
+  const [raisonAnnulation, setRaisonAnnulation] = useState("");
+
+  const apiMode = isApiConfigured();
+
+  const rafraichirAbonnements = useCallback(async () => {
+    if (!apiMode) return;
+    const statut =
+      filtreStatut !== "tous" && filtreStatut !== "SUSPENDU"
+        ? filtreStatut
+        : undefined;
+    const plan =
+      filtrePlan !== "tous" ? (filtrePlan as PlanType) : undefined;
+    const rows = await fetchSubscriptionsPersisted({ statut, plan });
+    setAbonnements(rows);
+  }, [apiMode, filtreStatut, filtrePlan]);
 
   React.useEffect(() => {
     const load = async () => {
       setPlans(await fetchPlansPersisted());
-      const apiSubs = await fetchSubscriptionsPersisted();
-      if (apiSubs.length > 0) {
-        setAbonnements(apiSubs);
+      if (apiMode) {
+        await rafraichirAbonnements();
+      } else {
+        setAbonnements(await fetchSubscriptionsPersisted());
       }
     };
     void load();
-  }, []);
+  }, [apiMode, rafraichirAbonnements]);
+
+  React.useEffect(() => {
+    if (!apiMode) return;
+    void rafraichirAbonnements();
+  }, [apiMode, rafraichirAbonnements, filtreStatut, filtrePlan]);
 
   const reinitialiserFiltres = useCallback(() => {
     setFiltreStatut("tous");
@@ -185,13 +206,13 @@ export default function AbonnementsPage() {
   const listeFiltree = useMemo(() => {
     return abonnementsActifs.filter((a) => {
       const okStat =
-        filtreStatut === "tous" || a.statut === filtreStatut;
-      const okPlan = filtrePlan === "tous" || a.plan === filtrePlan;
+        apiMode || filtreStatut === "tous" || a.statut === filtreStatut;
+      const okPlan = apiMode || filtrePlan === "tous" || a.plan === filtrePlan;
       const okType =
         filtreType === "tous" || a.typeRenouvellement === filtreType;
       return okStat && okPlan && okType;
     });
-  }, [abonnementsActifs, filtreStatut, filtrePlan, filtreType]);
+  }, [abonnementsActifs, filtreStatut, filtrePlan, filtreType, apiMode]);
 
   const rafraichirPlans = useCallback(async () => {
     setPlans(await fetchPlansPersisted());
@@ -271,7 +292,7 @@ export default function AbonnementsPage() {
     setAboEdition(null);
   };
 
-  const confirmerDialog = () => {
+  const confirmerDialog = async () => {
     if (!dialog) return;
     if (dialog.type === "supprimerPlan") {
       const { plan } = dialog;
@@ -283,14 +304,29 @@ export default function AbonnementsPage() {
         setDialog(null);
         return;
       }
-      deletePlan(plan.id);
-      void rafraichirPlans();
-      toast.success(`Plan « ${plan.nom} » supprimé (soft delete).`);
+      void (async () => {
+        const result = await deletePlanPersisted(plan.id);
+        if (!result.ok) {
+          toast.error(result.error);
+          return;
+        }
+        await rafraichirPlans();
+        toast.success(
+          isApiConfigured()
+            ? `Plan « ${plan.nom} » passé en INACTIF.`
+            : `Plan « ${plan.nom} » supprimé (soft delete).`
+        );
+      })();
       setDialog(null);
       return;
     }
     const { abo } = dialog;
     if (dialog.type === "supprimer") {
+      if (apiMode) {
+        toast.error("La suppression d’abonnement n’est pas disponible. Utilisez l’annulation.");
+        setDialog(null);
+        return;
+      }
       setAbonnements((prev) =>
         prev.map((row) =>
           row.id === abo.id
@@ -300,22 +336,27 @@ export default function AbonnementsPage() {
       );
       toast.success("Abonnement supprimé (soft delete).");
     } else if (dialog.type === "suspendre") {
-      setAbonnements((prev) =>
-        prev.map((row) =>
-          row.id === abo.id ? { ...row, statut: "SUSPENDU" as const } : row
-        )
-      );
-      toast.success(`Abonnement de ${abo.utilisateurNom} suspendu.`);
+      if (apiMode) {
+        toast.error("La suspension n’est pas disponible. Utilisez l’annulation.");
+      } else {
+        setAbonnements((prev) =>
+          prev.map((row) =>
+            row.id === abo.id ? { ...row, statut: "SUSPENDU" as const } : row
+          )
+        );
+        toast.success(`Abonnement de ${abo.utilisateurNom} suspendu.`);
+      }
     } else if (dialog.type === "annuler") {
-      setAbonnements((prev) =>
-        prev.map((row) =>
-          row.id === abo.id ? { ...row, statut: "ANNULE" as const } : row
-        )
-      );
-      void cancelSubscriptionPersisted(abo.id);
-      toast.success(`Abonnement de ${abo.utilisateurNom} annulé.`);
+      const result = await cancelSubscriptionPersisted(abo.id, raisonAnnulation);
+      if (!result.ok) {
+        toast.error(result.error);
+      } else {
+        await rafraichirAbonnements();
+        toast.success(`Abonnement de ${abo.utilisateurNom} annulé.`);
+      }
     }
     setDialog(null);
+    setRaisonAnnulation("");
   };
 
   const enregistrerPlan = async (e: React.FormEvent) => {
@@ -330,33 +371,40 @@ export default function AbonnementsPage() {
       toast.error("Prix et durée doivent être supérieurs à 0.");
       return;
     }
-    try {
-      if (modalPlan === "modifier" && planEdition) {
-        await updatePlanPersisted(planEdition.id, {
-          nom: formPlan.nom.trim(),
-          prix,
-          dureeJours,
-          statut: formPlan.statut,
-        });
-        toast.success("Plan tarifaire modifié.");
-      } else {
-        const code =
-          formPlan.code.trim() || slugifyPlanCode(formPlan.nom);
-        await createPlanPersisted({
-          nom: formPlan.nom.trim(),
-          code,
-          prix,
-          dureeJours,
-          statut: formPlan.statut,
-        });
-        toast.success("Plan tarifaire créé.");
-      }
-      await rafraichirPlans();
-      setModalPlan(null);
-      setPlanEdition(null);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Erreur.");
+    if (apiMode && prix < 100) {
+      toast.error("Le prix minimum est de 100 XOF.");
+      return;
     }
+    if (modalPlan === "modifier" && planEdition) {
+      const result = await updatePlanPersisted(planEdition.id, {
+        ...(apiMode ? {} : { nom: formPlan.nom.trim() }),
+        prix,
+        dureeJours,
+        statut: formPlan.statut,
+      });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Plan tarifaire modifié.");
+    } else {
+      const code = formPlan.code.trim() || slugifyPlanCode(formPlan.nom);
+      const result = await createPlanPersisted({
+        nom: formPlan.nom.trim(),
+        code,
+        prix,
+        dureeJours,
+        ...(apiMode ? {} : { statut: formPlan.statut }),
+      });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success("Plan tarifaire créé.");
+    }
+    await rafraichirPlans();
+    setModalPlan(null);
+    setPlanEdition(null);
   };
 
   return (
@@ -371,7 +419,11 @@ export default function AbonnementsPage() {
             Plans tarifaires et suivi des abonnements B LINKS
           </p>
         </div>
-        <Button onClick={ouvrirAjout} startIcon={<PlusIcon className="size-5" />}>
+        <Button
+          disabled={apiMode}
+          onClick={ouvrirAjout}
+          startIcon={<PlusIcon className="size-5" />}
+        >
           Ajouter un abonnement
         </Button>
       </div>
@@ -395,7 +447,7 @@ export default function AbonnementsPage() {
           </p>
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 md:gap-6">
-            {plans.map((pl) => (
+            {plansVisibles.map((pl) => (
               <div
                 key={pl.id}
                 className={`rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/[0.03] ${
@@ -473,7 +525,7 @@ export default function AbonnementsPage() {
             >
               <option value="tous">Tous</option>
               <option value="ACTIF">Actif</option>
-              <option value="SUSPENDU">Suspendu</option>
+              {!apiMode && <option value="SUSPENDU">Suspendu</option>}
               <option value="EXPIRE">Expiré</option>
               <option value="ANNULE">Annulé</option>
             </select>
@@ -656,9 +708,10 @@ export default function AbonnementsPage() {
                             {a.statut !== "ANNULE" && (
                               <button
                                 type="button"
-                                onClick={() =>
-                                  setDialog({ type: "annuler", abo: a })
-                                }
+                                onClick={() => {
+                                  setRaisonAnnulation("");
+                                  setDialog({ type: "annuler", abo: a });
+                                }}
                                 className="rounded-lg border border-error-200 px-2.5 py-1.5 text-theme-xs font-medium text-error-600 hover:bg-error-50 dark:border-error-500/30"
                               >
                                 Annuler
@@ -822,7 +875,7 @@ export default function AbonnementsPage() {
                 }
               >
                 <option value="ACTIF">Actif</option>
-                <option value="SUSPENDU">Suspendu</option>
+                {!apiMode && <option value="SUSPENDU">Suspendu</option>}
                 <option value="EXPIRE">Expiré</option>
                 <option value="ANNULE">Annulé</option>
               </select>
@@ -861,6 +914,7 @@ export default function AbonnementsPage() {
             <Input
               id="plan-nom"
               required
+              disabled={apiMode && modalPlan === "modifier"}
               value={formPlan.nom}
               onChange={(e) => {
                 const nom = e.target.value;
@@ -874,6 +928,12 @@ export default function AbonnementsPage() {
                 }));
               }}
             />
+            {apiMode && modalPlan === "modifier" && (
+              <p className="mt-1 text-theme-xs text-gray-500">
+                Type de plan (<code className="text-xs">{formPlan.code}</code>) non
+                modifiable.
+              </p>
+            )}
           </div>
           {modalPlan === "creer" && (
             <div>
@@ -896,11 +956,11 @@ export default function AbonnementsPage() {
           )}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <Label htmlFor="plan-prix">Prix (XAF) *</Label>
+              <Label htmlFor="plan-prix">Prix (XOF) *</Label>
               <Input
                 id="plan-prix"
                 type="number"
-                min="1"
+                min={apiMode ? "100" : "1"}
                 required
                 value={formPlan.prix}
                 onChange={(e) =>
@@ -922,23 +982,30 @@ export default function AbonnementsPage() {
               />
             </div>
           </div>
-          <div>
-            <Label htmlFor="plan-statut">Statut</Label>
-            <select
-              id="plan-statut"
-              className={selectClass}
-              value={formPlan.statut}
-              onChange={(e) =>
-                setFormPlan((f) => ({
-                  ...f,
-                  statut: e.target.value as StatutPlanTarifaire,
-                }))
-              }
-            >
-              <option value="ACTIF">Actif</option>
-              <option value="INACTIF">Inactif</option>
-            </select>
-          </div>
+          {modalPlan === "modifier" || !apiMode ? (
+            <div>
+              <Label htmlFor="plan-statut">Statut</Label>
+              <select
+                id="plan-statut"
+                className={selectClass}
+                value={formPlan.statut}
+                onChange={(e) =>
+                  setFormPlan((f) => ({
+                    ...f,
+                    statut: e.target.value as StatutPlanTarifaire,
+                  }))
+                }
+              >
+                <option value="ACTIF">Actif</option>
+                <option value="INACTIF">Inactif</option>
+              </select>
+            </div>
+          ) : (
+            <p className="text-theme-xs text-gray-500 dark:text-gray-400">
+              À la création, le statut est toujours <strong>ACTIF</strong>{" "}
+              (modifiable ensuite).
+            </p>
+          )}
           <div className="flex justify-end gap-2 border-t border-gray-100 pt-4 dark:border-gray-800">
             <Button
               variant="outline"
@@ -984,6 +1051,17 @@ export default function AbonnementsPage() {
               {getPlanLabel(dialog.abo.plan)}).
               {dialog.type === "supprimer" &&
                 " Soft delete : l'enregistrement est conservé mais masqué."}
+              {dialog.type === "annuler" && apiMode && (
+                <div className="mt-4">
+                  <Label htmlFor="raison-annulation">Raison d’annulation *</Label>
+                  <TextArea
+                    rows={3}
+                    value={raisonAnnulation}
+                    onChange={(v) => setRaisonAnnulation(v)}
+                    placeholder="Minimum 3 caractères"
+                  />
+                </div>
+              )}
             </>
           ) : null
         }

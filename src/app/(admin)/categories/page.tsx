@@ -6,11 +6,12 @@ import toast from "react-hot-toast";
 import { Breadcrumb, adminCrumb } from "@/components/Breadcrumb";
 import { EmptyState } from "@/components/EmptyState";
 import type { MockCategorie } from "@/lib/mock-data";
+import { isApiConfigured } from "@/lib/api/client";
 import {
-  createCategory,
-  getAllCategories,
+  createCategoryPersisted,
+  fetchCategoriesPersisted,
   restoreCategory,
-  softDeleteCategory,
+  softDeleteCategoryPersisted,
 } from "@/lib/categories-store";
 import Button from "@/components/ui/button/Button";
 import Badge from "@/components/ui/badge/Badge";
@@ -28,16 +29,36 @@ function formatLivres(n: number): string {
 export default function CategoriesPage() {
   const router = useRouter();
   const [categories, setCategories] = useState<MockCategorie[]>([]);
+  const [loading, setLoading] = useState(true);
+  const apiMode = isApiConfigured();
 
-  const refresh = useCallback(() => {
-    setCategories(getAllCategories(true));
-  }, []);
-
-  useEffect(() => {
-    refresh();
-  }, [refresh]);
   const [search, setSearch] = useState("");
   const [champRechercheKey, setChampRechercheKey] = useState(0);
+
+  const refresh = useCallback(
+    async (q?: string) => {
+      setLoading(true);
+      try {
+        const query = (q ?? search).trim();
+        const list = await fetchCategoriesPersisted(
+          apiMode && query ? { q: query } : undefined
+        );
+        setCategories(list);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [apiMode, search]
+  );
+
+  useEffect(() => {
+    if (!apiMode) {
+      void refresh();
+      return;
+    }
+    const timer = setTimeout(() => void refresh(search), 300);
+    return () => clearTimeout(timer);
+  }, [apiMode, search, refresh]);
   const [modalOuvert, setModalOuvert] = useState(false);
   const [modalKey, setModalKey] = useState(0);
   const [supprimerCible, setSupprimerCible] = useState<MockCategorie | null>(
@@ -45,6 +66,7 @@ export default function CategoriesPage() {
   );
 
   const listeFiltree = useMemo(() => {
+    if (apiMode) return categories;
     const q = search.trim().toLowerCase();
     if (!q) return categories;
     return categories.filter(
@@ -52,7 +74,7 @@ export default function CategoriesPage() {
         c.nom.toLowerCase().includes(q) ||
         c.description.toLowerCase().includes(q)
     );
-  }, [categories, search]);
+  }, [categories, search, apiMode]);
 
   const reinitialiserFiltres = useCallback(() => {
     setSearch("");
@@ -63,17 +85,25 @@ export default function CategoriesPage() {
     toast.success(msg);
   }, []);
 
-  const confirmerSuppression = useCallback(() => {
+  const confirmerSuppression = useCallback(async () => {
     if (!supprimerCible) return;
-    softDeleteCategory(supprimerCible.id);
-    refresh();
-    showToast(`« ${supprimerCible.nom} » supprimée (soft delete).`);
+    const result = await softDeleteCategoryPersisted(supprimerCible.id);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    await refresh();
+    showToast(
+      apiMode
+        ? `« ${supprimerCible.nom} » supprimée (deleted_at enregistré).`
+        : `« ${supprimerCible.nom} » supprimée.`
+    );
     setSupprimerCible(null);
-  }, [supprimerCible, showToast, refresh]);
+  }, [apiMode, supprimerCible, showToast, refresh]);
 
   const restaurer = (id: string) => {
-    restoreCategory(id);
-    refresh();
+    if (!restoreCategory(id)) return;
+    void refresh();
     showToast("Catégorie restaurée.");
   };
 
@@ -99,10 +129,9 @@ export default function CategoriesPage() {
         </Button>
       </div>
 
-      <div className="rounded-xl border border-amber-500/30 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-100">
-        La suppression est un <strong>soft delete</strong> : la donnée reste
-        en base, les livres liés restent cohérents.
-      </div>
+      {loading && (
+        <p className="text-sm text-gray-500 dark:text-gray-400">Chargement…</p>
+      )}
 
       <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/[0.05] dark:bg-white/[0.03]">
         <Label htmlFor="search-cat">Rechercher</Label>
@@ -131,7 +160,7 @@ export default function CategoriesPage() {
               key={c.id}
               className="relative flex min-h-[200px] flex-col overflow-hidden rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/[0.03]"
             >
-              {supprimee && (
+              {supprimee && !apiMode && (
                 <div className="pointer-events-none absolute inset-0 z-[1] flex flex-col items-center justify-center gap-3 rounded-2xl bg-gray-100/85 dark:bg-gray-900/80">
                   <span className="rounded-full bg-error-500/90 px-4 py-1.5 text-sm font-semibold text-white shadow">
                     Supprimée
@@ -195,9 +224,17 @@ export default function CategoriesPage() {
         description={
           supprimerCible ? (
             <>
-              « {supprimerCible.nom} » sera marquée comme supprimée (soft delete).
-              Les livres liés restent en base. Vous pourrez la restaurer depuis la
-              liste.
+              « {supprimerCible.nom} » sera supprimée. Les livres liés restent
+              en base.
+              {apiMode ? (
+                <>
+                  {" "}
+                  Impossible si un défi <strong>actif</strong> référence cette
+                  catégorie.
+                </>
+              ) : (
+                " Vous pourrez la restaurer en mode démo."
+              )}
             </>
           ) : null
         }
@@ -212,8 +249,8 @@ export default function CategoriesPage() {
       >
         <AjouterCategorieForm
           key={modalKey}
-          onSuccess={() => {
-            refresh();
+          onSuccess={async () => {
+            await refresh();
             setModalOuvert(false);
             showToast("Catégorie enregistrée.");
           }}
@@ -224,33 +261,55 @@ export default function CategoriesPage() {
   );
 }
 
+const CATEGORIE_NOM_MAX = 100;
+
 function AjouterCategorieForm({
   onSuccess,
 }: {
-  onSuccess: () => void;
+  onSuccess: () => void | Promise<void>;
 }) {
+  const apiMode = isApiConfigured();
   const [nom, setNom] = useState("");
   const [description, setDescription] = useState("");
-  const [errNom, setErrNom] = useState(false);
+  const [errNom, setErrNom] = useState<string | null>(null);
   const [errUnique, setErrUnique] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const n = nom.trim();
     if (!n) {
-      setErrNom(true);
+      setErrNom("Le nom est obligatoire.");
       setErrUnique(false);
       return;
     }
-    setErrNom(false);
-    const result = createCategory({ nom: n, description });
+    if (n.length > CATEGORIE_NOM_MAX) {
+      setErrNom(
+        `Le nom ne peut pas dépasser ${CATEGORIE_NOM_MAX} caractères.`
+      );
+      setErrUnique(false);
+      return;
+    }
+    setErrNom(null);
+    setSubmitting(true);
+    const result = await createCategoryPersisted({ nom: n, description });
+    setSubmitting(false);
     if (!result.ok) {
-      if (result.error.includes("déjà")) setErrUnique(true);
-      else setErrNom(true);
+      if (
+        result.error.includes("déjà") ||
+        result.error.includes("utilisé") ||
+        result.error.includes("Conflit")
+      ) {
+        setErrUnique(true);
+        setErrNom(null);
+      } else {
+        toast.error(result.error);
+        setErrNom(result.error);
+      }
       return;
     }
     setErrUnique(false);
-    onSuccess();
+    await onSuccess();
   };
 
   return (
@@ -262,29 +321,31 @@ function AjouterCategorieForm({
         <div>
           <Label htmlFor="cat-nom">Nom *</Label>
           <p className="mb-2 text-theme-xs text-warning-600 dark:text-orange-400">
-            Le nom doit être unique.
+            Unique (max {CATEGORIE_NOM_MAX} caractères).
           </p>
           <Input
             id="cat-nom"
             type="text"
+            maxLength={CATEGORIE_NOM_MAX}
+            value={nom}
             onChange={(e) => {
               setNom(e.target.value);
-              setErrNom(false);
+              setErrNom(null);
               setErrUnique(false);
             }}
-            error={errNom || errUnique}
+            error={!!errNom || errUnique}
           />
           {errNom && (
-            <p className="mt-1 text-sm text-error-500">Le nom est obligatoire.</p>
+            <p className="mt-1 text-sm text-error-500">{errNom}</p>
           )}
           {errUnique && !errNom && (
             <p className="mt-1 text-sm text-error-500">
-              Ce nom est déjà utilisé.
+              Nom déjà utilisé (409).
             </p>
           )}
         </div>
         <div>
-          <Label htmlFor="cat-desc">Description</Label>
+          <Label htmlFor="cat-desc">Description (optionnel)</Label>
           <TextArea
             rows={4}
             value={description}
@@ -295,9 +356,10 @@ function AjouterCategorieForm({
         <div className="flex justify-end border-t border-gray-100 pt-4 dark:border-gray-800">
           <button
             type="submit"
-            className="rounded-lg bg-brand-500 px-5 py-3.5 text-sm font-medium text-white hover:bg-brand-600"
+            disabled={submitting}
+            className="rounded-lg bg-brand-500 px-5 py-3.5 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-60"
           >
-            Enregistrer
+            {submitting ? "Enregistrement…" : "Enregistrer"}
           </button>
         </div>
       </form>

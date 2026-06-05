@@ -1,4 +1,6 @@
-﻿import { isSoftDeleted, softDeleteTimestamp } from "@/lib/soft-delete";
+﻿import { isApiConfigured } from "@/lib/api/client";
+import { getApiBearerToken } from "@/lib/api/auth-token";
+import { isSoftDeleted, softDeleteTimestamp } from "@/lib/soft-delete";
 
 export type StatutAdmin = "ACTIF" | "SUSPENDU";
 
@@ -136,6 +138,71 @@ export function logout(): void {
   localStorage.removeItem(SESSION_KEY);
 }
 
+/** Ouvre une session UI après login API réussi (JWT déjà stocké). */
+export function establishLocalSessionFromApiUser(user: {
+  id: string;
+  email: string;
+  nom: string;
+  prenom: string;
+}): AdminAccount {
+  const email = user.email.trim().toLowerCase();
+  let admins = readAdmins().map(normalizeAdmin);
+  const existingIdx = admins.findIndex(
+    (a) => a.id === user.id || a.email.toLowerCase() === email
+  );
+
+  const account: AdminAccount = {
+    id: user.id,
+    email,
+    password: "",
+    prenom: user.prenom.trim() || "Admin",
+    nom: user.nom.trim() || "B LINKS",
+    fonction: "Administrateur",
+    localisation: "Brazzaville, Congo",
+    avatarUrl: DEFAULT_AVATAR,
+    isSuperAdmin: true,
+    statut: "ACTIF",
+    createdAt: new Date().toISOString(),
+    deletedAt: null,
+  };
+
+  if (existingIdx >= 0) {
+    admins = admins.map((a, i) => (i === existingIdx ? account : a));
+  } else {
+    admins = [account, ...admins];
+  }
+  writeAdmins(admins);
+
+  const session: AdminSession = {
+    adminId: account.id,
+    expiresAt: Date.now() + 7 * 24 * 60 * 60 * 1000,
+  };
+  localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  return account;
+}
+
+/** Session UI si JWT présent (ex. NEXT_PUBLIC_ADMIN_BEARER_TOKEN) sans login formulaire. */
+export function getApiBootstrapAdmin(): AdminAccount | null {
+  if (!isBrowser() || !isApiConfigured() || !getApiBearerToken()) {
+    return null;
+  }
+
+  return {
+    id: "api-bootstrap",
+    email: "session-api@local",
+    password: "",
+    prenom: "Administrateur",
+    nom: "API",
+    fonction: "Administrateur",
+    localisation: "Brazzaville, Congo",
+    avatarUrl: DEFAULT_AVATAR,
+    isSuperAdmin: true,
+    statut: "ACTIF",
+    createdAt: new Date().toISOString(),
+    deletedAt: null,
+  };
+}
+
 export function getSession(): AdminSession | null {
   if (!isBrowser()) return null;
   try {
@@ -154,8 +221,11 @@ export function getSession(): AdminSession | null {
 
 export function getCurrentAdmin(): AdminAccount | null {
   const session = getSession();
-  if (!session) return null;
-  return getAdminById(session.adminId);
+  if (session) {
+    const admin = getAdminById(session.adminId);
+    if (admin) return admin;
+  }
+  return getApiBootstrapAdmin();
 }
 
 export function updateAdminProfile(

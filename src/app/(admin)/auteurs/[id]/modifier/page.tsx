@@ -5,7 +5,11 @@ import { useParams, notFound, useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import type { MockAuteur } from "@/lib/mock-data";
-import { getAuteurById, updateAuteur } from "@/lib/auteurs-store";
+import {
+  fetchAuteursPersisted,
+  getAuteurById,
+  updateAuteurPersisted,
+} from "@/lib/auteurs-store";
 import { isSoftDeleted } from "@/lib/soft-delete";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
@@ -19,8 +23,16 @@ export default function ModifierAuteurPage() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    setAuteur(getAuteurById(id));
-    setLoaded(true);
+    let cancelled = false;
+    (async () => {
+      await fetchAuteursPersisted();
+      if (cancelled) return;
+      setAuteur(getAuteurById(id));
+      setLoaded(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   if (!loaded) {
@@ -80,15 +92,16 @@ function ModifierAuteurForm({
 }) {
   const [prenom, setPrenom] = useState(auteur.prenom);
   const [nom, setNom] = useState(auteur.nom);
-  const [bio, setBio] = useState("");
+  const [bio, setBio] = useState(auteur.bio ?? "");
   const [errNom, setErrNom] = useState(false);
 
   const handleSubmit = useCallback(
-    (e: React.FormEvent) => {
+    async (e: React.FormEvent) => {
       e.preventDefault();
-      const result = updateAuteur(auteur.id, {
+      const result = await updateAuteurPersisted(auteur.id, {
         prenom: prenom.trim(),
         nom: nom.trim(),
+        bio,
       });
       if (!result.ok) {
         setErrNom(true);
@@ -98,7 +111,7 @@ function ModifierAuteurForm({
       setErrNom(false);
       onSuccess();
     },
-    [auteur.id, prenom, nom, onSuccess]
+    [auteur.id, prenom, nom, bio, onSuccess]
   );
 
   return (

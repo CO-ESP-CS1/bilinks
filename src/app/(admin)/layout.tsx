@@ -1,9 +1,7 @@
-﻿import type { Metadata } from "next";
+﻿import { adminPageMetadata } from "@/config/metadata";
 import AdminLayoutClient from "./AdminLayoutClient";
 
-export const metadata: Metadata = {
-  title: "Tableau de bord — B LINKS Admin",
-};
+export const metadata = adminPageMetadata("Tableau de bord");
 
 export default function AdminGroupLayout({
   children,

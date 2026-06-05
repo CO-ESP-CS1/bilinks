@@ -10,11 +10,13 @@ import {
   type MockUtilisateur,
   type RoleUser,
 } from "@/lib/mock-data";
+import { isApiConfigured } from "@/lib/api/client";
+import type { PaginationMeta } from "@/lib/api/pagination";
+import { useAuth } from "@/context/AuthContext";
 import {
   createUserPersisted,
   deleteUserPersisted,
-  fetchUsers,
-  getAllUsers,
+  fetchUsersPersisted,
   toggleUserBanPersisted,
   updateUserPersisted,
 } from "@/lib/users-store";
@@ -59,7 +61,7 @@ function formatEntier(n: number): string {
 }
 
 type FiltreRole = "tous" | "user" | "admin";
-type FiltreStatut = "tous" | "actif" | "banni";
+type FiltreStatut = "tous" | "actif" | "banni" | "pending";
 type FiltreAbonnement = "tous" | "abonne" | "non";
 
 type DialogCible = {
@@ -192,27 +194,75 @@ function UserFormFields({
 
 export default function UtilisateursPage() {
   const router = useRouter();
-  const [utilisateurs, setUtilisateurs] = useState<MockUtilisateur[]>(() =>
-    getAllUsers()
-  );
+  const [utilisateurs, setUtilisateurs] = useState<MockUtilisateur[]>([]);
   const [search, setSearch] = useState("");
   const [filtreRole, setFiltreRole] = useState<FiltreRole>("tous");
   const [filtreStatut, setFiltreStatut] = useState<FiltreStatut>("tous");
   const [filtreAbonnement, setFiltreAbonnement] =
     useState<FiltreAbonnement>("tous");
+  const [usersPage, setUsersPage] = useState(1);
+  const [usersMeta, setUsersMeta] = useState<PaginationMeta | null>(null);
+  const [loadingUsers, setLoadingUsers] = useState(false);
 
   const [modalCreate, setModalCreate] = useState(false);
   const [editCible, setEditCible] = useState<MockUtilisateur | null>(null);
   const [dialogCible, setDialogCible] = useState<DialogCible | null>(null);
+  const [raisonBan, setRaisonBan] = useState("");
   const [form, setForm] = useState<UserFormState>(emptyForm);
 
+  const apiMode = isApiConfigured();
+  const { admin: currentAdmin } = useAuth();
+
   const recharger = useCallback(async () => {
-    setUtilisateurs(await fetchUsers());
-  }, []);
+    setLoadingUsers(true);
+    try {
+      if (apiMode) {
+        const statut =
+          filtreStatut === "actif"
+            ? ("ACTIF" as const)
+            : filtreStatut === "banni"
+              ? ("BANNI" as const)
+              : filtreStatut === "pending"
+                ? ("PENDING" as const)
+                : undefined;
+        const role =
+          filtreRole === "user"
+            ? ("USER" as const)
+            : filtreRole === "admin"
+              ? ("ADMIN" as const)
+              : undefined;
+        const { users, meta } = await fetchUsersPersisted({
+          statut,
+          role,
+          q: search.trim() || undefined,
+          page: usersPage,
+          limit: 20,
+        });
+        setUtilisateurs(users);
+        setUsersMeta(meta);
+        return;
+      }
+      const { users } = await fetchUsersPersisted();
+      setUtilisateurs(users);
+      setUsersMeta(null);
+    } finally {
+      setLoadingUsers(false);
+    }
+  }, [apiMode, filtreStatut, filtreRole, search, usersPage]);
 
   useEffect(() => {
-    void recharger();
-  }, [recharger]);
+    setUsersPage(1);
+  }, [filtreStatut, filtreRole, search]);
+
+  useEffect(() => {
+    const timer = setTimeout(
+      () => {
+        void recharger();
+      },
+      apiMode && search.trim() ? 300 : 0
+    );
+    return () => clearTimeout(timer);
+  }, [recharger, apiMode, search]);
 
   const reinitialiserFiltres = useCallback(() => {
     setSearch("");
@@ -229,7 +279,7 @@ export default function UtilisateursPage() {
   }, [utilisateurs]);
 
   const listeFiltree = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = apiMode ? "" : search.trim().toLowerCase();
     return utilisateurs.filter((u) => {
       const nomComplet = `${u.prenom} ${u.nom}`.toLowerCase();
       const matchSearch =
@@ -237,12 +287,15 @@ export default function UtilisateursPage() {
         nomComplet.includes(q) ||
         u.email.toLowerCase().includes(q);
       const matchRole =
+        apiMode ||
         filtreRole === "tous" ||
         (filtreRole === "user" && u.role === "USER") ||
         (filtreRole === "admin" && u.role === "ADMIN");
       const matchStatut =
+        apiMode ||
         filtreStatut === "tous" ||
         (filtreStatut === "actif" && u.statut === "ACTIF") ||
+        (filtreStatut === "pending" && u.statut === "PENDING") ||
         (filtreStatut === "banni" && u.statut === "BANNI");
       const matchAbo =
         filtreAbonnement === "tous" ||
@@ -250,7 +303,7 @@ export default function UtilisateursPage() {
         (filtreAbonnement === "non" && !u.abonnementActif);
       return matchSearch && matchRole && matchStatut && matchAbo;
     });
-  }, [utilisateurs, search, filtreRole, filtreStatut, filtreAbonnement]);
+  }, [utilisateurs, search, filtreRole, filtreStatut, filtreAbonnement, apiMode]);
 
   const ouvrirEdit = (u: MockUtilisateur) => {
     setEditCible(u);
@@ -305,7 +358,21 @@ export default function UtilisateursPage() {
     if (!dialogCible) return;
     const { user, type } = dialogCible;
     if (type === "ban") {
-      const result = await toggleUserBanPersisted(user.id);
+      if (
+        apiMode &&
+        currentAdmin?.id === user.id &&
+        user.statut === "ACTIF"
+      ) {
+        toast.error("Vous ne pouvez pas vous bannir vous-même.");
+        setDialogCible(null);
+        setRaisonBan("");
+        return;
+      }
+      const result = await toggleUserBanPersisted(
+        user.id,
+        user.statut === "ACTIF" ? raisonBan : undefined,
+        user.statut
+      );
       if (!result.ok) {
         toast.error(result.error);
       } else {
@@ -315,6 +382,7 @@ export default function UtilisateursPage() {
             : `${user.prenom} ${user.nom} a été réactivé.`
         );
       }
+      setRaisonBan("");
     } else {
       const result = await deleteUserPersisted(user.id);
       if (!result.ok) {
@@ -342,7 +410,7 @@ export default function UtilisateursPage() {
               <span className="font-medium text-gray-800 dark:text-white/90">
                 Enregistrés :
               </span>{" "}
-              {utilisateurs.length}
+              {apiMode && usersMeta ? usersMeta.total : utilisateurs.length}
             </span>
             <span className="text-gray-300 dark:text-gray-600">|</span>
             <span>
@@ -367,11 +435,13 @@ export default function UtilisateursPage() {
             </span>
           </div>
           <p className="mt-1 text-xs text-gray-500">
-            Plateforme (indicateurs) : {formatEntier(mockKPIs.totalUtilisateurs)}{" "}
-            utilisateurs — données locales modifiables.
+            {apiMode
+              ? "Recherche, filtres et modération des comptes utilisateurs."
+              : `Plateforme (indicateurs) : ${formatEntier(mockKPIs.totalUtilisateurs)} utilisateurs — mode local.`}
           </p>
         </div>
         <Button
+          disabled={apiMode}
           onClick={() => {
             setForm(emptyForm);
             setModalCreate(true);
@@ -388,6 +458,7 @@ export default function UtilisateursPage() {
             id="search-users"
             type="text"
             placeholder="Nom ou e-mail…"
+            value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
@@ -416,6 +487,7 @@ export default function UtilisateursPage() {
           >
             <option value="tous">Tous</option>
             <option value="actif">Actifs</option>
+            {apiMode && <option value="pending">En attente (PENDING)</option>}
             <option value="banni">Bannis</option>
           </select>
         </div>
@@ -506,11 +578,17 @@ export default function UtilisateursPage() {
                         )}
                       </TableCell>
                       <TableCell className="px-4 py-3 text-start">
-                        {u.statut === "ACTIF" ? (
+                        {u.statut === "ACTIF" && (
                           <Badge color="success" size="sm" variant="light">
                             Actif
                           </Badge>
-                        ) : (
+                        )}
+                        {u.statut === "PENDING" && (
+                          <Badge color="warning" size="sm" variant="light">
+                            En attente
+                          </Badge>
+                        )}
+                        {u.statut === "BANNI" && (
                           <Badge color="error" size="sm" variant="light">
                             Banni
                           </Badge>
@@ -542,36 +620,42 @@ export default function UtilisateursPage() {
                           >
                             <EyeIcon className="size-5" />
                           </button>
-                          <button
-                            type="button"
-                            title="Modifier"
-                            className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-brand-500 dark:hover:bg-white/5"
-                            onClick={() => ouvrirEdit(u)}
-                          >
-                            <PencilIcon className="size-5" />
-                          </button>
+                          {!apiMode && (
+                            <button
+                              type="button"
+                              title="Modifier"
+                              className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-brand-500 dark:hover:bg-white/5"
+                              onClick={() => ouvrirEdit(u)}
+                            >
+                              <PencilIcon className="size-5" />
+                            </button>
+                          )}
                           <button
                             type="button"
                             title={
-                              u.statut === "ACTIF" ? "Bannir" : "Réactiver"
+                              u.statut === "BANNI" ? "Réactiver" : "Bannir"
                             }
                             className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-warning-500 dark:hover:bg-white/5"
-                            onClick={() =>
-                              setDialogCible({ user: u, type: "ban" })
-                            }
+                            disabled={apiMode && currentAdmin?.id === u.id}
+                            onClick={() => {
+                              setRaisonBan("");
+                              setDialogCible({ user: u, type: "ban" });
+                            }}
                           >
                             <LockIcon className="size-5" />
                           </button>
-                          <button
-                            type="button"
-                            title="Supprimer"
-                            className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-error-500 dark:hover:bg-white/5"
-                            onClick={() =>
-                              setDialogCible({ user: u, type: "supprimer" })
-                            }
-                          >
-                            <TrashBinIcon className="size-5" />
-                          </button>
+                          {!apiMode && (
+                            <button
+                              type="button"
+                              title="Supprimer"
+                              className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 hover:text-error-500 dark:hover:bg-white/5"
+                              onClick={() =>
+                                setDialogCible({ user: u, type: "supprimer" })
+                              }
+                            >
+                              <TrashBinIcon className="size-5" />
+                            </button>
+                          )}
                           <button
                             type="button"
                             title="Abonnement"
@@ -594,6 +678,35 @@ export default function UtilisateursPage() {
           </div>
         )}
       </div>
+
+      {apiMode && usersMeta && usersMeta.total_pages > 1 && (
+        <div className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-white px-4 py-3 dark:border-white/[0.06] dark:bg-white/[0.02]">
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            Page {usersMeta.page} / {usersMeta.total_pages} — {usersMeta.total}{" "}
+            utilisateur{usersMeta.total > 1 ? "s" : ""}
+          </span>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={usersPage <= 1 || loadingUsers}
+              onClick={() => setUsersPage((p) => Math.max(1, p - 1))}
+            >
+              Précédent
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={
+                usersPage >= usersMeta.total_pages || loadingUsers
+              }
+              onClick={() => setUsersPage((p) => p + 1)}
+            >
+              Suivant
+            </Button>
+          </div>
+        </div>
+      )}
 
       <Modal
         isOpen={modalCreate}
@@ -665,7 +778,10 @@ export default function UtilisateursPage() {
 
       <ConfirmDialog
         isOpen={dialogCible != null}
-        onClose={() => setDialogCible(null)}
+        onClose={() => {
+          setDialogCible(null);
+          setRaisonBan("");
+        }}
         onConfirm={confirmerDialog}
         title={
           dialogCible?.type === "supprimer"
@@ -683,8 +799,25 @@ export default function UtilisateursPage() {
               </>
             ) : dialogCible.user.statut === "ACTIF" ? (
               <>
-                « {dialogCible.user.prenom} {dialogCible.user.nom} » ne pourra
-                plus accéder à l&apos;application.
+                <p>
+                  « {dialogCible.user.prenom} {dialogCible.user.nom} » ne pourra
+                  plus accéder à l&apos;application.
+                </p>
+                {apiMode && (
+                  <div className="mt-4">
+                    <Label htmlFor="ban-raison">Raison (optionnelle)</Label>
+                    <Input
+                      id="ban-raison"
+                      value={raisonBan}
+                      onChange={(e) => setRaisonBan(e.target.value)}
+                      placeholder="Ex. violation des conditions d’utilisation"
+                      className="mt-1"
+                    />
+                    <p className="mt-1 text-xs text-gray-400">
+                      Journalisée côté serveur (non stockée en base).
+                    </p>
+                  </div>
+                )}
               </>
             ) : (
               <>

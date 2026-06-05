@@ -2,6 +2,7 @@
 
 import React, { useCallback, useRef, useState } from "react";
 import toast from "react-hot-toast";
+import { formatUserFacingError } from "@/lib/api/errors";
 import { BookCover } from "@/components/livres/BookCover";
 import {
   COVER_EXPORT_HEIGHT,
@@ -14,7 +15,10 @@ import { PencilIcon } from "@/icons";
 
 type CoverUploaderProps = {
   value: string | null;
-  onChange: (dataUrl: string | null, meta?: ProcessedCover | null) => void;
+  onChange: (
+    dataUrl: string | null,
+    meta?: ProcessedCover | null
+  ) => void;
   bookTitle?: string;
 };
 
@@ -35,7 +39,7 @@ export function CoverUploader({ value, onChange, bookTitle = "Aperçu" }: CoverU
           `Couverture optimisée (${result.width}×${result.height}, ${formatCoverSize(result.bytesApprox)})`
         );
       } catch (err) {
-        toast.error(err instanceof Error ? err.message : "Échec du traitement.");
+        toast.error(formatUserFacingError(err, "Impossible de traiter cette image."));
       } finally {
         setProcessing(false);
       }

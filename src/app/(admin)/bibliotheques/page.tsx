@@ -1,16 +1,25 @@
 ﻿"use client";
 
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useMemo, useState, useCallback, useEffect } from "react";
 import Link from "next/link";
 import toast from "react-hot-toast";
 import { Breadcrumb, adminCrumb } from "@/components/Breadcrumb";
 import { EmptyState } from "@/components/EmptyState";
-import {
-  mockBibliotheques,
-  type MockBibliotheque,
-  type TypeBibliotheque,
-  type StatutBibliotheque,
+import type {
+  MockBibliotheque,
+  TypeBibliotheque,
 } from "@/lib/mock-data";
+import { isApiConfigured } from "@/lib/api/client";
+import {
+  addBooksToLibraryPersisted,
+  archiveLibraryPersisted,
+  unarchiveLibraryPersisted,
+  createLibraryPersisted,
+  fetchLibrariesPersisted,
+  removeBookFromLibraryPersisted,
+  updateLibraryPersisted,
+} from "@/lib/libraries-store";
+import type { StatutBibliotheque } from "@/types/admin";
 import Badge from "@/components/ui/badge/Badge";
 import Button from "@/components/ui/button/Button";
 import { Modal } from "@/components/ui/modal";
@@ -19,11 +28,142 @@ import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import TextArea from "@/components/form/input/TextArea";
 import Radio from "@/components/form/input/Radio";
-import { isSoftDeleted, softDeleteTimestamp } from "@/lib/soft-delete";
-import { PencilIcon, ArrowRightIcon, FolderIcon, TrashBinIcon } from "@/icons";
+import { PencilIcon, ArrowRightIcon, FolderIcon } from "@/icons";
 
 function formatLivres(n: number): string {
   return `${new Intl.NumberFormat("fr-FR").format(n)} livre${n > 1 ? "s" : ""}`;
+}
+
+function parseLivreIdsInput(raw: string): string[] {
+  return [...new Set(raw.split(/[,;\s]+/).map((s) => s.trim()).filter(Boolean))];
+}
+
+function AssocierLivresBibliotheque({
+  bibliothequeId,
+  bibliothequeNom,
+  onDone,
+}: {
+  bibliothequeId: string;
+  bibliothequeNom: string;
+  onDone: () => void;
+}) {
+  const [livreIdsRaw, setLivreIdsRaw] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleAdd = async () => {
+    const livreIds = parseLivreIdsInput(livreIdsRaw);
+    if (!livreIds.length) {
+      toast.error("Saisissez au moins un UUID de livre.");
+      return;
+    }
+    setSubmitting(true);
+    const result = await addBooksToLibraryPersisted(bibliothequeId, livreIds);
+    setSubmitting(false);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    const msg =
+      result.added === 0
+        ? `Aucun nouveau livre ajouté à « ${bibliothequeNom} » (doublons ignorés).`
+        : `${result.added} livre${result.added > 1 ? "s" : ""} associé${result.added > 1 ? "s" : ""} à « ${bibliothequeNom} ».`;
+    toast.success(msg);
+    setLivreIdsRaw("");
+    onDone();
+  };
+
+  return (
+    <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50/80 p-3 dark:border-gray-800 dark:bg-white/[0.02]">
+      <p className="text-xs font-medium text-gray-600 dark:text-gray-400">
+        Associer des livres — bibliothèques internes uniquement
+      </p>
+      <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end">
+        <div className="min-w-0 flex-1">
+          <Label htmlFor={`associer-livre-${bibliothequeId}`} className="sr-only">
+            UUID(s) des livres
+          </Label>
+          <Input
+            id={`associer-livre-${bibliothequeId}`}
+            type="text"
+            placeholder="UUID livre(s), séparés par virgule…"
+            value={livreIdsRaw}
+            onChange={(e) => setLivreIdsRaw(e.target.value)}
+          />
+        </div>
+        <button
+          type="button"
+          disabled={submitting}
+          onClick={() => void handleAdd()}
+          className="shrink-0 rounded-lg border border-brand-500/40 px-3 py-2 text-xs font-medium text-brand-600 hover:bg-brand-500/10 disabled:opacity-50 dark:text-brand-400"
+        >
+          {submitting ? "Association…" : "Associer"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function RetirerLivreBibliotheque({
+  bibliothequeId,
+  bibliothequeNom,
+  onDone,
+}: {
+  bibliothequeId: string;
+  bibliothequeNom: string;
+  onDone: () => void;
+}) {
+  const [bookId, setBookId] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleRemove = async () => {
+    if (!bookId.trim()) {
+      toast.error("Saisissez l’identifiant UUID du livre.");
+      return;
+    }
+    setSubmitting(true);
+    const result = await removeBookFromLibraryPersisted(
+      bibliothequeId,
+      bookId.trim()
+    );
+    setSubmitting(false);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    toast.success(result.message || `Livre retiré de « ${bibliothequeNom} ».`);
+    setBookId("");
+    onDone();
+  };
+
+  return (
+    <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50/80 p-3 dark:border-gray-800 dark:bg-white/[0.02]">
+      <p className="text-xs font-medium text-gray-600 dark:text-gray-400">
+        Retirer un livre de cette bibliothèque
+      </p>
+      <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end">
+        <div className="min-w-0 flex-1">
+          <Label htmlFor={`retirer-livre-${bibliothequeId}`} className="sr-only">
+            UUID du livre
+          </Label>
+          <Input
+            id={`retirer-livre-${bibliothequeId}`}
+            type="text"
+            placeholder="UUID du livre…"
+            value={bookId}
+            onChange={(e) => setBookId(e.target.value)}
+          />
+        </div>
+        <button
+          type="button"
+          disabled={submitting}
+          onClick={() => void handleRemove()}
+          className="shrink-0 rounded-lg border border-error-500/40 px-3 py-2 text-xs font-medium text-error-600 hover:bg-error-500/10 disabled:opacity-50 dark:text-error-400"
+        >
+          {submitting ? "Retrait…" : "Retirer"}
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function IconeLienExterne({ className }: { className?: string }) {
@@ -77,18 +217,7 @@ function IconeToggleArchive({ archivage }: { archivage: boolean }) {
   );
 }
 
-const selectClass =
-  "h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800";
-
 type FormErr = Partial<Record<"nom" | "urlExterne", string>>;
-
-type BibFormValues = {
-  nom: string;
-  description: string;
-  type: TypeBibliotheque;
-  urlExterne: string;
-  statut: StatutBibliotheque;
-};
 
 function BibliothequeForm({
   initial,
@@ -96,37 +225,53 @@ function BibliothequeForm({
   onCancel,
 }: {
   initial?: MockBibliotheque;
-  onSave: (data: Omit<MockBibliotheque, "id">) => void;
+  onSave: (data: {
+    nom: string;
+    description?: string;
+    type: TypeBibliotheque;
+    urlExterne?: string | null;
+  }) => Promise<void>;
   onCancel: () => void;
 }) {
   const [nom, setNom] = useState(initial?.nom ?? "");
-  const [description, setDescription] = useState(initial?.description ?? "");
+  const [description, setDescription] = useState(
+    initial?.description === "—" ? "" : (initial?.description ?? "")
+  );
   const [type, setType] = useState<TypeBibliotheque>(initial?.type ?? "INTERNE");
   const [urlExterne, setUrlExterne] = useState(initial?.urlExterne ?? "");
-  const [statut, setStatut] = useState<StatutBibliotheque>(
-    initial?.statut ?? "ACTIVE"
-  );
+  const isEdit = Boolean(initial);
   const [errors, setErrors] = useState<FormErr>({});
+  const [submitting, setSubmitting] = useState(false);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const next: FormErr = {};
     if (!nom.trim()) next.nom = "Le nom est obligatoire.";
-    if (type === "EXTERNE" && !urlExterne.trim()) {
-      next.urlExterne = "L'URL externe est obligatoire.";
+    if ((!isEdit || initial?.type === "EXTERNE") && type === "EXTERNE") {
+      if (!urlExterne.trim()) {
+        next.urlExterne = "L'URL externe est obligatoire.";
+      } else {
+        try {
+          const parsed = new URL(urlExterne.trim());
+          if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+            next.urlExterne = "URL invalide — utilisez http:// ou https://.";
+          }
+        } catch {
+          next.urlExterne = "URL invalide — utilisez http:// ou https://.";
+        }
+      }
     }
     setErrors(next);
     if (Object.keys(next).length > 0) return;
 
-    onSave({
+    setSubmitting(true);
+    await onSave({
       nom: nom.trim(),
-      description: description.trim() || "—",
+      description: description.trim() || undefined,
       type,
       urlExterne: type === "EXTERNE" ? urlExterne.trim() : null,
-      statut,
-      nbLivres: initial?.nbLivres ?? (type === "INTERNE" ? 0 : 0),
-      deletedAt: initial?.deletedAt ?? null,
     });
+    setSubmitting(false);
   };
 
   return (
@@ -136,8 +281,19 @@ function BibliothequeForm({
       </h2>
 
       <div className="mt-4 rounded-xl border border-blue-light-500/30 bg-blue-light-50 p-4 text-sm text-blue-light-700 dark:border-blue-light-500/20 dark:bg-blue-light-500/10 dark:text-blue-light-200">
-        Les bibliothèques <strong>EXTERNES</strong> redirigent vers un catalogue
-        tiers : le volume de livres n&apos;est pas recensé dans B LINKS.
+        {isEdit ? (
+          <>
+            Le <strong>type</strong> n&apos;est pas modifiable. L&apos;URL
+            externe s&apos;applique uniquement aux bibliothèques{" "}
+            <strong>EXTERNE</strong>.
+          </>
+        ) : (
+          <>
+            <strong>INTERNE</strong> : pas d&apos;URL externe.{" "}
+            <strong>EXTERNE</strong> : URL obligatoire. Statut{" "}
+            <strong>ACTIVE</strong> appliqué à la création.
+          </>
+        )}
       </div>
 
       <form onSubmit={submit} className="mt-6 space-y-4">
@@ -167,26 +323,41 @@ function BibliothequeForm({
 
         <div>
           <span className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-400">
-            Type *
+            Type {isEdit ? "" : "*"}
           </span>
-          <div className="flex flex-col gap-3 sm:flex-row sm:gap-6">
-            <Radio
-              id="type-interne"
-              name="bib-type"
-              value="INTERNE"
-              checked={type === "INTERNE"}
-              label="Interne"
-              onChange={() => setType("INTERNE")}
-            />
-            <Radio
-              id="type-externe"
-              name="bib-type"
-              value="EXTERNE"
-              checked={type === "EXTERNE"}
-              label="Externe"
-              onChange={() => setType("EXTERNE")}
-            />
-          </div>
+          {isEdit ? (
+            <p className="text-sm text-gray-700 dark:text-gray-300">
+              <Badge color={type === "INTERNE" ? "info" : "primary"} size="sm" variant="light">
+                {type}
+              </Badge>
+              <span className="ml-2 text-gray-500 dark:text-gray-400">
+                Non modifiable après création
+              </span>
+            </p>
+          ) : (
+            <div className="flex flex-col gap-3 sm:flex-row sm:gap-6">
+              <Radio
+                id="type-interne"
+                name="bib-type"
+                value="INTERNE"
+                checked={type === "INTERNE"}
+                label="Interne"
+                onChange={() => {
+                  setType("INTERNE");
+                  setUrlExterne("");
+                  setErrors((e) => ({ ...e, urlExterne: undefined }));
+                }}
+              />
+              <Radio
+                id="type-externe"
+                name="bib-type"
+                value="EXTERNE"
+                checked={type === "EXTERNE"}
+                label="Externe"
+                onChange={() => setType("EXTERNE")}
+              />
+            </div>
+          )}
         </div>
 
         {type === "EXTERNE" && (
@@ -206,20 +377,12 @@ function BibliothequeForm({
           </div>
         )}
 
-        <div>
-          <Label htmlFor="bib-statut">Statut</Label>
-          <select
-            id="bib-statut"
-            className={selectClass}
-            value={statut}
-            onChange={(e) =>
-              setStatut(e.target.value as StatutBibliotheque)
-            }
-          >
-            <option value="ACTIVE">Active</option>
-            <option value="ARCHIVEE">Archivée</option>
-          </select>
-        </div>
+        {initial?.statut === "ARCHIVEE" && (
+          <p className="text-sm text-warning-600 dark:text-warning-400">
+            Bibliothèque archivée — utilisez le bouton Désarchiver sur la carte
+            pour la réactiver.
+          </p>
+        )}
 
         <div className="flex justify-end gap-2 border-t border-gray-100 pt-4 dark:border-gray-800">
           <Button variant="outline" onClick={onCancel}>
@@ -227,7 +390,8 @@ function BibliothequeForm({
           </Button>
           <button
             type="submit"
-            className="inline-flex items-center justify-center rounded-lg bg-brand-500 px-5 py-3.5 text-sm font-medium text-white hover:bg-brand-600"
+            disabled={submitting}
+            className="inline-flex items-center justify-center rounded-lg bg-brand-500 px-5 py-3.5 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-60"
           >
             Enregistrer
           </button>
@@ -237,45 +401,52 @@ function BibliothequeForm({
   );
 }
 
+const selectClass =
+  "h-11 w-full rounded-lg border border-gray-300 bg-white px-4 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90";
+
 export default function BibliothequesPage() {
-  const [bibliotheques, setBibliotheques] = useState<MockBibliotheque[]>(() =>
-    mockBibliotheques.map((b) => ({ ...b, deletedAt: b.deletedAt ?? null }))
-  );
+  const apiMode = isApiConfigured();
+  const [bibliotheques, setBibliotheques] = useState<MockBibliotheque[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [filtreStatut, setFiltreStatut] = useState<"" | StatutBibliotheque>("");
+  const [filtreType, setFiltreType] = useState<"" | TypeBibliotheque>("");
   const [champRechercheKey, setChampRechercheKey] = useState(0);
   const [modalMode, setModalMode] = useState<"ajouter" | "modifier" | null>(null);
   const [edition, setEdition] = useState<MockBibliotheque | null>(null);
-  const [supprimerCible, setSupprimerCible] = useState<MockBibliotheque | null>(
+  const [archiveCible, setArchiveCible] = useState<MockBibliotheque | null>(
     null
   );
+  const [desarchiveCible, setDesarchiveCible] =
+    useState<MockBibliotheque | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const rows = await fetchLibrariesPersisted({
+        statut: filtreStatut || undefined,
+        type: filtreType || undefined,
+      });
+      setBibliotheques(rows);
+    } finally {
+      setLoading(false);
+    }
+  }, [filtreStatut, filtreType]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
   const reinitialiserFiltres = useCallback(() => {
     setSearch("");
+    setFiltreStatut("");
+    setFiltreType("");
     setChampRechercheKey((k) => k + 1);
-  }, []);
-
-  const basculerStatut = useCallback((b: MockBibliotheque) => {
-    setBibliotheques((prev) =>
-      prev.map((row) =>
-        row.id === b.id
-          ? {
-              ...row,
-              statut:
-                row.statut === "ACTIVE"
-                  ? ("ARCHIVEE" as const)
-                  : ("ACTIVE" as const),
-            }
-          : row
-      )
-    );
-    toast.success("Statut mis à jour.");
   }, []);
 
   const listeFiltree = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const base = [...bibliotheques]
-      .filter((b) => !isSoftDeleted(b.deletedAt))
-      .sort((a, b) =>
+    const base = [...bibliotheques].sort((a, b) =>
       a.nom.localeCompare(b.nom, "fr")
     );
     if (!q) return base;
@@ -286,36 +457,69 @@ export default function BibliothequesPage() {
     );
   }, [bibliotheques, search]);
 
-  const enregistrerBibliotheque = (data: Omit<MockBibliotheque, "id">) => {
+  const enregistrerBibliotheque = async (data: {
+    nom: string;
+    description?: string;
+    type: TypeBibliotheque;
+    urlExterne?: string | null;
+  }) => {
     if (modalMode === "modifier" && edition) {
-      setBibliotheques((prev) =>
-        prev.map((row) =>
-          row.id === edition.id
-            ? {
-                ...row,
-                ...data,
-                nbLivres:
-                  data.type === "EXTERNE" ? 0 : (data.nbLivres ?? row.nbLivres),
-              }
-            : row
-        )
-      );
+      const result = await updateLibraryPersisted(edition.id, {
+        nom: data.nom,
+        description: data.description ?? "",
+        urlExterne:
+          edition.type === "EXTERNE" ? (data.urlExterne ?? undefined) : undefined,
+      });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
       toast.success("Bibliothèque modifiée.");
     } else {
-      setBibliotheques((prev) => [
-        ...prev,
-        {
-          id: `b-${Date.now()}`,
-          ...data,
-          nbLivres: data.type === "INTERNE" ? (data.nbLivres ?? 0) : 0,
-          deletedAt: null,
-        },
-      ]);
+      const result = await createLibraryPersisted({
+        nom: data.nom,
+        type: data.type,
+        description: data.description,
+        urlExterne: data.urlExterne,
+      });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
       toast.success("Bibliothèque ajoutée.");
     }
+    await refresh();
     setModalMode(null);
     setEdition(null);
   };
+
+  const confirmerArchivage = useCallback(async () => {
+    if (!archiveCible) return;
+    const result = await archiveLibraryPersisted(archiveCible.id);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    await refresh();
+    toast.success(
+      `« ${archiveCible.nom} » archivée (statut ${result.statut}).`
+    );
+    setArchiveCible(null);
+  }, [archiveCible, refresh]);
+
+  const confirmerDesarchivage = useCallback(async () => {
+    if (!desarchiveCible) return;
+    const result = await unarchiveLibraryPersisted(desarchiveCible.id);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    await refresh();
+    toast.success(
+      `« ${desarchiveCible.nom} » réactivée (statut ${result.statut}).`
+    );
+    setDesarchiveCible(null);
+  }, [desarchiveCible, refresh]);
 
   return (
     <div className="space-y-6">
@@ -339,22 +543,60 @@ export default function BibliothequesPage() {
         </Button>
       </div>
 
-      <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/[0.05] dark:bg-white/[0.03]">
-        <Label htmlFor="search-bib">Rechercher</Label>
-        <Input
-          key={champRechercheKey}
-          id="search-bib"
-          type="text"
-          placeholder="Nom ou description…"
-          className="mt-2"
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      <div className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-4 dark:border-white/[0.05] dark:bg-white/[0.03] lg:flex-row lg:items-end">
+        <div className="min-w-[200px] flex-1">
+          <Label htmlFor="search-bib">Rechercher (local)</Label>
+          <Input
+            key={champRechercheKey}
+            id="search-bib"
+            type="text"
+            placeholder="Nom ou description…"
+            className="mt-2"
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="w-full min-w-[140px] sm:w-44">
+          <Label htmlFor="bib-filtre-statut">Statut</Label>
+          <select
+            id="bib-filtre-statut"
+            className={`mt-2 ${selectClass}`}
+            value={filtreStatut}
+            onChange={(e) =>
+              setFiltreStatut(e.target.value as "" | StatutBibliotheque)
+            }
+          >
+            <option value="">Tous</option>
+            <option value="ACTIVE">Active</option>
+            <option value="ARCHIVEE">Archivée</option>
+          </select>
+        </div>
+        <div className="w-full min-w-[140px] sm:w-44">
+          <Label htmlFor="bib-filtre-type">Type</Label>
+          <select
+            id="bib-filtre-type"
+            className={`mt-2 ${selectClass}`}
+            value={filtreType}
+            onChange={(e) =>
+              setFiltreType(e.target.value as "" | TypeBibliotheque)
+            }
+          >
+            <option value="">Tous</option>
+            <option value="INTERNE">Interne</option>
+            <option value="EXTERNE">Externe</option>
+          </select>
+        </div>
       </div>
 
-      {listeFiltree.length === 0 ? (
+      {loading ? (
+        <p className="text-sm text-gray-500 dark:text-gray-400">Chargement…</p>
+      ) : listeFiltree.length === 0 ? (
         <EmptyState
           icon={<FolderIcon className="size-7" />}
-          message="Aucune bibliothèque trouvée pour ce filtre."
+          message={
+            apiMode
+              ? "Aucune bibliothèque en base (ou filtres trop restrictifs)."
+              : "Aucune bibliothèque trouvée pour ce filtre."
+          }
           onReset={reinitialiserFiltres}
         />
       ) : (
@@ -414,6 +656,20 @@ export default function BibliothequesPage() {
                       Gérer les livres
                       <ArrowRightIcon className="size-4" />
                     </Link>
+                    {apiMode && b.statut === "ACTIVE" && (
+                      <>
+                        <AssocierLivresBibliotheque
+                          bibliothequeId={b.id}
+                          bibliothequeNom={b.nom}
+                          onDone={() => void refresh()}
+                        />
+                        <RetirerLivreBibliotheque
+                          bibliothequeId={b.id}
+                          bibliothequeNom={b.nom}
+                          onDone={() => void refresh()}
+                        />
+                      </>
+                    )}
                   </div>
                 )}
 
@@ -453,24 +709,25 @@ export default function BibliothequesPage() {
                   >
                     <PencilIcon className="size-5" />
                   </button>
-                  <button
-                    type="button"
-                    title={
-                      b.statut === "ACTIVE" ? "Archiver" : "Réactiver"
-                    }
-                    onClick={() => basculerStatut(b)}
-                    className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 ring-1 ring-gray-200 transition hover:bg-gray-50 hover:text-warning-500 dark:ring-gray-700 dark:hover:bg-white/5"
-                  >
-                    <IconeToggleArchive archivage={b.statut === "ACTIVE"} />
-                  </button>
-                  <button
-                    type="button"
-                    title="Supprimer"
-                    onClick={() => setSupprimerCible(b)}
-                    className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 ring-1 ring-gray-200 transition hover:bg-error-50 hover:text-error-500 dark:ring-gray-700"
-                  >
-                    <TrashBinIcon className="size-5" />
-                  </button>
+                  {b.statut === "ACTIVE" ? (
+                    <button
+                      type="button"
+                      title="Archiver"
+                      onClick={() => setArchiveCible(b)}
+                      className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 ring-1 ring-gray-200 transition hover:bg-gray-50 hover:text-warning-500 dark:ring-gray-700 dark:hover:bg-white/5"
+                    >
+                      <IconeToggleArchive archivage />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      title="Désarchiver"
+                      onClick={() => setDesarchiveCible(b)}
+                      className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 ring-1 ring-gray-200 transition hover:bg-gray-50 hover:text-success-500 dark:ring-gray-700 dark:hover:bg-white/5"
+                    >
+                      <IconeToggleArchive archivage={false} />
+                    </button>
+                  )}
                 </div>
               </div>
             </article>
@@ -498,31 +755,39 @@ export default function BibliothequesPage() {
       </Modal>
 
       <ConfirmDialog
-        isOpen={supprimerCible != null}
-        onClose={() => setSupprimerCible(null)}
-        onConfirm={() => {
-          if (!supprimerCible) return;
-          setBibliotheques((prev) =>
-            prev.map((row) =>
-              row.id === supprimerCible.id
-                ? { ...row, deletedAt: softDeleteTimestamp() }
-                : row
-            )
-          );
-          toast.success("Bibliothèque supprimée (soft delete).");
-          setSupprimerCible(null);
-        }}
-        title="Supprimer cette bibliothèque ?"
+        isOpen={archiveCible != null}
+        onClose={() => setArchiveCible(null)}
+        onConfirm={confirmerArchivage}
+        title="Archiver cette bibliothèque ?"
         description={
-          supprimerCible ? (
+          archiveCible ? (
             <>
-              « {supprimerCible.nom} » sera marquée comme supprimée (soft delete).
-              Les livres internes liés ne sont pas supprimés automatiquement.
+              « {archiveCible.nom} » passera au statut{" "}
+              <strong>ARCHIVEE</strong> — masquée du catalogue utilisateur. Les
+              livres liés ne sont pas supprimés.
             </>
           ) : null
         }
-        confirmLabel="Supprimer"
-        variant="danger"
+        confirmLabel="Archiver"
+        variant="warning"
+      />
+
+      <ConfirmDialog
+        isOpen={desarchiveCible != null}
+        onClose={() => setDesarchiveCible(null)}
+        onConfirm={confirmerDesarchivage}
+        title="Désarchiver cette bibliothèque ?"
+        description={
+          desarchiveCible ? (
+            <>
+              « {desarchiveCible.nom} » passera au statut{" "}
+              <strong>ACTIVE</strong> — de nouveau visible dans le catalogue
+              utilisateur.
+            </>
+          ) : null
+        }
+        confirmLabel="Désarchiver"
+        variant="primary"
       />
     </div>
   );

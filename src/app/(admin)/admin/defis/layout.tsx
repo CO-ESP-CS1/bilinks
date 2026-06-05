@@ -1,8 +1,6 @@
-﻿import type { Metadata } from "next";
+import { adminPageMetadata } from "@/config/metadata";
 
-export const metadata: Metadata = {
-  title: "Défis et badges — B LINKS Admin",
-};
+export const metadata = adminPageMetadata("Défis et badges");
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return children;

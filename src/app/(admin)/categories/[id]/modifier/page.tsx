@@ -5,10 +5,12 @@ import { useParams, notFound, useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import type { MockCategorie } from "@/lib/mock-data";
+import { isApiConfigured } from "@/lib/api/client";
 import {
+  fetchCategoriesPersisted,
   getCategoryById,
   isCategoryNameTaken,
-  updateCategory,
+  updateCategoryPersisted,
 } from "@/lib/categories-store";
 import { isSoftDeleted } from "@/lib/soft-delete";
 import Label from "@/components/form/Label";
@@ -23,9 +25,16 @@ export default function ModifierCategoriePage() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    const cat = getCategoryById(id);
-    setCategorie(cat);
-    setLoaded(true);
+    let cancelled = false;
+    (async () => {
+      await fetchCategoriesPersisted();
+      if (cancelled) return;
+      setCategorie(getCategoryById(id));
+      setLoaded(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   if (!loaded) {
@@ -73,6 +82,8 @@ export default function ModifierCategoriePage() {
   );
 }
 
+const CATEGORIE_NOM_MAX = 100;
+
 function ModifierCategorieForm({
   categorie,
   onSuccess,
@@ -82,38 +93,58 @@ function ModifierCategorieForm({
   onSuccess: () => void;
   onCancel: () => void;
 }) {
+  const apiMode = isApiConfigured();
   const [nom, setNom] = useState(categorie.nom);
   const [description, setDescription] = useState(categorie.description);
-  const [errNom, setErrNom] = useState(false);
+  const [errNom, setErrNom] = useState<string | null>(null);
   const [errUnique, setErrUnique] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = useCallback(
-    (e: React.FormEvent) => {
+    async (e: React.FormEvent) => {
       e.preventDefault();
       const n = nom.trim();
       if (!n) {
-        setErrNom(true);
+        setErrNom("Le nom est obligatoire.");
         setErrUnique(false);
         return;
       }
-      setErrNom(false);
-      if (isCategoryNameTaken(n, categorie.id)) {
+      if (n.length > CATEGORIE_NOM_MAX) {
+        setErrNom(
+          `Le nom ne peut pas dépasser ${CATEGORIE_NOM_MAX} caractères.`
+        );
+        setErrUnique(false);
+        return;
+      }
+      setErrNom(null);
+      if (!apiMode && isCategoryNameTaken(n, categorie.id)) {
         setErrUnique(true);
         return;
       }
-      const result = updateCategory(categorie.id, {
+      setSubmitting(true);
+      const result = await updateCategoryPersisted(categorie.id, {
         nom: n,
         description,
       });
+      setSubmitting(false);
       if (!result.ok) {
-        if (result.error.includes("déjà")) setErrUnique(true);
-        else toast.error(result.error);
+        if (
+          result.error.includes("déjà") ||
+          result.error.includes("utilisé") ||
+          result.error.includes("Conflit")
+        ) {
+          setErrUnique(true);
+          setErrNom(null);
+        } else {
+          toast.error(result.error);
+          setErrNom(result.error);
+        }
         return;
       }
       setErrUnique(false);
       onSuccess();
     },
-    [categorie.id, nom, description, onSuccess]
+    [apiMode, categorie.id, nom, description, onSuccess]
   );
 
   return (
@@ -121,30 +152,31 @@ function ModifierCategorieForm({
       <div>
         <Label htmlFor="edit-cat-nom">Nom *</Label>
         <p className="mb-2 text-theme-xs text-warning-600 dark:text-orange-400">
-          Le nom doit être unique.
+          Unique (max {CATEGORIE_NOM_MAX} caractères).
         </p>
         <Input
           id="edit-cat-nom"
           type="text"
-          defaultValue={nom}
+          maxLength={CATEGORIE_NOM_MAX}
+          value={nom}
           onChange={(e) => {
             setNom(e.target.value);
-            setErrNom(false);
+            setErrNom(null);
             setErrUnique(false);
           }}
-          error={errNom || errUnique}
+          error={!!errNom || errUnique}
         />
         {errNom && (
-          <p className="mt-1 text-sm text-error-500">Le nom est obligatoire.</p>
+          <p className="mt-1 text-sm text-error-500">{errNom}</p>
         )}
         {errUnique && !errNom && (
           <p className="mt-1 text-sm text-error-500">
-            Ce nom est déjà utilisé.
+            Nom déjà utilisé (409).
           </p>
         )}
       </div>
       <div>
-        <Label htmlFor="edit-cat-desc">Description</Label>
+        <Label htmlFor="edit-cat-desc">Description (optionnel)</Label>
         <TextArea
           rows={4}
           value={description}
@@ -162,9 +194,10 @@ function ModifierCategorieForm({
         </button>
         <button
           type="submit"
-          className="rounded-lg bg-brand-500 px-5 py-3.5 text-sm font-medium text-white hover:bg-brand-600"
+          disabled={submitting}
+          className="rounded-lg bg-brand-500 px-5 py-3.5 text-sm font-medium text-white hover:bg-brand-600 disabled:opacity-60"
         >
-          Enregistrer
+          {submitting ? "Enregistrement…" : "Enregistrer"}
         </button>
       </div>
     </form>

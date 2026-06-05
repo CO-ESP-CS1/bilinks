@@ -4,7 +4,11 @@ import React, { useState, useCallback, useEffect } from "react";
 import toast from "react-hot-toast";
 import Image from "next/image";
 import { Breadcrumb, adminCrumb } from "@/components/Breadcrumb";
+import { isApiConfigured } from "@/lib/api/client";
+import { hasApiSession } from "@/lib/api/session";
 import { useAuth } from "@/context/AuthContext";
+import { fetchUsersPersisted } from "@/lib/users-store";
+import type { MockUtilisateur } from "@/lib/mock-data";
 import {
   getDisplayName,
   type AdminAccount,
@@ -30,6 +34,7 @@ type DialogCible = {
 };
 
 export default function AdministrateursPage() {
+  const apiMode = isApiConfigured();
   const {
     admins,
     addAdmin,
@@ -40,6 +45,8 @@ export default function AdministrateursPage() {
     refresh,
   } = useAuth();
 
+  const [apiAdmins, setApiAdmins] = useState<MockUtilisateur[]>([]);
+  const [loadingAdmins, setLoadingAdmins] = useState(false);
   const [modalCreate, setModalCreate] = useState(false);
   const [editCible, setEditCible] = useState<AdminAccount | null>(null);
   const [dialogCible, setDialogCible] = useState<DialogCible | null>(null);
@@ -59,6 +66,23 @@ export default function AdministrateursPage() {
   useEffect(() => {
     refresh();
   }, [refresh]);
+
+  const loadApiAdmins = useCallback(async () => {
+    if (!apiMode || !hasApiSession()) {
+      setApiAdmins([]);
+      return;
+    }
+    setLoadingAdmins(true);
+    const result = await fetchUsersPersisted({ role: "ADMIN", limit: 100 });
+    setApiAdmins(result.users);
+    setLoadingAdmins(false);
+  }, [apiMode]);
+
+  useEffect(() => {
+    if (apiMode) {
+      void loadApiAdmins();
+    }
+  }, [apiMode, loadApiAdmins]);
 
   const reinitialiserCreate = useCallback(() => {
     setPrenom("");
@@ -82,10 +106,10 @@ export default function AdministrateursPage() {
     setEditPassword("");
   }, []);
 
-  const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const fd = new FormData(e.currentTarget);
-    const result = addAdmin({
+    const result = await addAdmin({
       prenom: String(fd.get("prenom") ?? prenom).trim(),
       nom: String(fd.get("nom") ?? nom).trim(),
       email: String(fd.get("email") ?? email).trim(),
@@ -98,6 +122,9 @@ export default function AdministrateursPage() {
     toast.success(`Administrateur « ${getDisplayName(result.admin)} » créé.`);
     setModalCreate(false);
     reinitialiserCreate();
+    if (apiMode) {
+      await loadApiAdmins();
+    }
   };
 
   const handleEdit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -164,7 +191,7 @@ export default function AdministrateursPage() {
             Administrateurs
           </h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Créer, modifier, suspendre ou supprimer les comptes admin.
+            Gérer les comptes administrateurs de la plateforme.
           </p>
         </div>
         <Button onClick={() => setModalCreate(true)}>Créer un admin</Button>
@@ -173,7 +200,49 @@ export default function AdministrateursPage() {
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
         <div className="overflow-x-auto">
           <div className="min-w-[800px]">
-            {admins.length === 0 ? (
+            {apiMode ? (
+              apiAdmins.length === 0 ? (
+                <p className="px-6 py-10 text-center text-sm text-gray-500">
+                  Aucun administrateur.
+                </p>
+              ) : (
+                <Table>
+                  <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
+                    <TableRow>
+                      {["Nom", "E-mail", "Statut", "Inscrit le"].map((col) => (
+                        <TableCell
+                          key={col}
+                          isHeader
+                          className="px-4 py-3 text-start text-theme-xs font-medium text-gray-500"
+                        >
+                          {col}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+                    {apiAdmins.map((a) => (
+                      <TableRow key={a.id}>
+                        <TableCell className="px-4 py-3 text-theme-sm font-medium text-gray-800 dark:text-white/90">
+                          {a.prenom} {a.nom}
+                        </TableCell>
+                        <TableCell className="px-4 py-3 text-theme-sm text-gray-600 dark:text-gray-400">
+                          {a.email}
+                        </TableCell>
+                        <TableCell className="px-4 py-3">
+                          <Badge color="success" size="sm" variant="light">
+                            {a.statut}
+                          </Badge>
+                        </TableCell>
+                        <TableCell className="px-4 py-3 text-theme-sm text-gray-500">
+                          {a.dateInscription}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )
+            ) : admins.length === 0 ? (
               <p className="px-6 py-10 text-center text-sm text-gray-500">
                 Aucun administrateur.
               </p>
@@ -350,7 +419,7 @@ export default function AdministrateursPage() {
               name="password"
               type="password"
               required
-              placeholder="6 caractères minimum"
+              placeholder={apiMode ? "8 caractères minimum" : "6 caractères minimum"}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
             />

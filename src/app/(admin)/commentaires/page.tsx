@@ -1,14 +1,17 @@
 "use client";
 
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useMemo, useState, useCallback, useEffect } from "react";
 import toast from "react-hot-toast";
 import { Breadcrumb, adminCrumb } from "@/components/Breadcrumb";
 import { EmptyState } from "@/components/EmptyState";
+import type { MockCommentaire, StatutCommentaire } from "@/lib/mock-data";
+import { isApiConfigured } from "@/lib/api/client";
 import {
-  mockCommentaires,
-  type MockCommentaire,
-  type StatutCommentaire,
-} from "@/lib/mock-data";
+  deleteCommentPersisted,
+  fetchCommentsPersisted,
+  moderateCommentPersisted,
+  setCommentStatutLocal,
+} from "@/lib/comments-store";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import Badge from "@/components/ui/badge/Badge";
@@ -40,13 +43,22 @@ const selectClass =
   "h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800";
 
 export default function CommentairesPage() {
-  const [commentaires, setCommentaires] = useState<MockCommentaire[]>(() =>
-    mockCommentaires.map((c) => ({ ...c }))
-  );
+  const [commentaires, setCommentaires] = useState<MockCommentaire[]>([]);
   const [search, setSearch] = useState("");
   const [filtreStatut, setFiltreStatut] = useState<FiltreStatut>("tous");
   const [expandedIds, setExpandedIds] = useState<Set<string>>(() => new Set());
   const [champRechercheKey, setChampRechercheKey] = useState(0);
+  const apiMode = isApiConfigured();
+
+  const refresh = useCallback(async () => {
+    const statut =
+      apiMode && filtreStatut !== "tous" ? filtreStatut : undefined;
+    setCommentaires(await fetchCommentsPersisted({ statut }));
+  }, [apiMode, filtreStatut]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
   const reinitialiserFiltres = useCallback(() => {
     setSearch("");
@@ -72,10 +84,10 @@ export default function CommentairesPage() {
         c.contenu.toLowerCase().includes(q) ||
         c.utilisateurNom.toLowerCase().includes(q);
       const matchStat =
-        filtreStatut === "tous" || c.statut === filtreStatut;
+        apiMode || filtreStatut === "tous" || c.statut === filtreStatut;
       return matchText && matchStat;
     });
-  }, [commentaires, search, filtreStatut]);
+  }, [commentaires, search, filtreStatut, apiMode]);
 
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => {
@@ -86,11 +98,40 @@ export default function CommentairesPage() {
     });
   };
 
-  const majStatut = (id: string, statut: StatutCommentaire, message: string) => {
-    setCommentaires((prev) =>
-      prev.map((c) => (c.id === id ? { ...c, statut } : c))
-    );
+  const apresAction = async (message: string) => {
+    await refresh();
     toast.success(message);
+  };
+
+  const moderer = async (id: string) => {
+    const result = await moderateCommentPersisted(id);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    await apresAction("Commentaire modéré (statut MODERE).");
+  };
+
+  const supprimer = async (id: string) => {
+    const result = await deleteCommentPersisted(id);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    await apresAction(
+      apiMode
+        ? "Commentaire supprimé définitivement."
+        : "Commentaire retiré de la liste."
+    );
+  };
+
+  const republierLocal = async (id: string) => {
+    const result = setCommentStatutLocal(id, "PUBLIE");
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    await apresAction("Commentaire republié (mode local).");
   };
 
   function afficherContenu(c: MockCommentaire) {
@@ -115,6 +156,9 @@ export default function CommentairesPage() {
         <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">
           Modération des commentaires
         </h1>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          Publier, modérer ou supprimer les avis des lecteurs.
+        </p>
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm text-gray-600 dark:text-gray-400">
           <span>
             <span className="font-medium text-gray-800 dark:text-white/90">
@@ -264,26 +308,14 @@ export default function CommentairesPage() {
                             <>
                               <button
                                 type="button"
-                                onClick={() =>
-                                  majStatut(
-                                    c.id,
-                                    "MODERE",
-                                    "Commentaire passé en modération."
-                                  )
-                                }
+                                onClick={() => void moderer(c.id)}
                                 className="rounded-lg bg-warning-500/15 px-3 py-1.5 text-theme-xs font-medium text-warning-700 hover:bg-warning-500/25 dark:text-orange-300"
                               >
                                 Modérer
                               </button>
                               <button
                                 type="button"
-                                onClick={() =>
-                                  majStatut(
-                                    c.id,
-                                    "SUPPRIME",
-                                    "Commentaire supprimé (conservé pour l'historique)."
-                                  )
-                                }
+                                onClick={() => void supprimer(c.id)}
                                 className="rounded-lg bg-error-500/15 px-3 py-1.5 text-theme-xs font-medium text-error-600 hover:bg-error-500/25 dark:text-error-400"
                               >
                                 Supprimer
@@ -292,48 +324,23 @@ export default function CommentairesPage() {
                           )}
                           {c.statut === "MODERE" && (
                             <>
+                              {!apiMode && (
+                                <button
+                                  type="button"
+                                  onClick={() => void republierLocal(c.id)}
+                                  className="rounded-lg bg-success-500/15 px-3 py-1.5 text-theme-xs font-medium text-success-700 hover:bg-success-500/25 dark:text-success-400"
+                                >
+                                  Republier
+                                </button>
+                              )}
                               <button
                                 type="button"
-                                onClick={() =>
-                                  majStatut(
-                                    c.id,
-                                    "PUBLIE",
-                                    "Commentaire republié."
-                                  )
-                                }
-                                className="rounded-lg bg-success-500/15 px-3 py-1.5 text-theme-xs font-medium text-success-700 hover:bg-success-500/25 dark:text-success-400"
-                              >
-                                Republier
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  majStatut(
-                                    c.id,
-                                    "SUPPRIME",
-                                    "Commentaire supprimé (conservé pour l'historique)."
-                                  )
-                                }
+                                onClick={() => void supprimer(c.id)}
                                 className="rounded-lg bg-error-500/15 px-3 py-1.5 text-theme-xs font-medium text-error-600 hover:bg-error-500/25 dark:text-error-400"
                               >
                                 Supprimer
                               </button>
                             </>
-                          )}
-                          {c.statut === "SUPPRIME" && (
-                            <button
-                              type="button"
-                              onClick={() =>
-                                majStatut(
-                                  c.id,
-                                  "PUBLIE",
-                                  "Commentaire restauré (republié)."
-                                )
-                              }
-                              className="rounded-lg bg-brand-500/15 px-3 py-1.5 text-theme-xs font-medium text-brand-600 hover:bg-brand-500/25 dark:text-brand-400"
-                            >
-                              Restaurer
-                            </button>
                           )}
                         </div>
                       </TableCell>

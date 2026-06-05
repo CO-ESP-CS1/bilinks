@@ -1,9 +1,11 @@
+import { isApiConfigured } from "@/lib/api/client";
 import {
   mockActiviteRecente,
   mockKPIs,
   mockNotifications,
   type MockNotification,
 } from "@/lib/mock-data";
+import type { DashboardAlerts } from "@/lib/stats-store";
 
 export type NotificationFeedType =
   | "inscription"
@@ -48,8 +50,65 @@ function mapPushNotification(n: MockNotification): AdminNotificationFeedItem {
   };
 }
 
-/** Notifications affichées dans la cloche du header (données mock-data). */
+function buildMockAlerts(): AdminNotificationFeedItem[] {
+  const alertes: AdminNotificationFeedItem[] = [];
+  if (mockKPIs.paiementsEnAttente > 0) {
+    alertes.push({
+      id: "alert-paiements",
+      titre: "Paiements en attente",
+      message: `${mockKPIs.paiementsEnAttente} paiements à confirmer`,
+      temps: "À traiter",
+      type: "alerte",
+      href: "/admin/paiements",
+    });
+  }
+  if (mockKPIs.commentairesAModerer > 0) {
+    alertes.push({
+      id: "alert-commentaires",
+      titre: "Modération",
+      message: `${mockKPIs.commentairesAModerer} commentaires à modérer`,
+      temps: "À traiter",
+      type: "alerte",
+      href: "/admin/commentaires",
+    });
+  }
+  return alertes;
+}
+
+/** Alertes réelles (paiements en attente, commentaires modérés). */
+export function buildAlertsNotificationFeed(
+  alerts: DashboardAlerts
+): AdminNotificationFeedItem[] {
+  const items: AdminNotificationFeedItem[] = [];
+  if (alerts.paiementsEnAttente > 0) {
+    items.push({
+      id: "alert-paiements",
+      titre: "Paiements en attente",
+      message: `${alerts.paiementsEnAttente} paiement${alerts.paiementsEnAttente > 1 ? "s" : ""} à confirmer`,
+      temps: "À traiter",
+      type: "alerte",
+      href: "/admin/paiements",
+    });
+  }
+  if (alerts.commentairesAModerer > 0) {
+    items.push({
+      id: "alert-commentaires",
+      titre: "Modération",
+      message: `${alerts.commentairesAModerer} commentaire${alerts.commentairesAModerer > 1 ? "s" : ""} à modérer`,
+      temps: "À traiter",
+      type: "alerte",
+      href: "/admin/commentaires",
+    });
+  }
+  return items;
+}
+
+/** Notifications affichées dans la cloche — démo locale uniquement. */
 export function getAdminNotificationFeed(): AdminNotificationFeedItem[] {
+  if (isApiConfigured()) {
+    return [];
+  }
+
   const activites: AdminNotificationFeedItem[] = mockActiviteRecente.map(
     (a, i) => ({
       id: `act-${i}`,
@@ -77,31 +136,11 @@ export function getAdminNotificationFeed(): AdminNotificationFeedItem[] {
     })
     .map(mapPushNotification);
 
-  const alertes: AdminNotificationFeedItem[] = [];
-  if (mockKPIs.paiementsEnAttente > 0) {
-    alertes.push({
-      id: "alert-paiements",
-      titre: "Paiements en attente",
-      message: `${mockKPIs.paiementsEnAttente} paiements à confirmer`,
-      temps: "À traiter",
-      type: "alerte",
-      href: "/admin/paiements",
-    });
-  }
-  if (mockKPIs.commentairesAModerer > 0) {
-    alertes.push({
-      id: "alert-commentaires",
-      titre: "Modération",
-      message: `${mockKPIs.commentairesAModerer} commentaires à modérer`,
-      temps: "À traiter",
-      type: "alerte",
-      href: "/admin/commentaires",
-    });
-  }
-
-  return [...alertes, ...activites, ...pushes].slice(0, 10);
+  return [...buildMockAlerts(), ...activites, ...pushes].slice(0, 10);
 }
 
-export function countUnreadAdminNotifications(): number {
-  return getAdminNotificationFeed().length;
+export function countUnreadAdminNotifications(
+  feed: AdminNotificationFeedItem[] = getAdminNotificationFeed()
+): number {
+  return feed.length;
 }

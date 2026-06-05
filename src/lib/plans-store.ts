@@ -1,9 +1,29 @@
 ﻿import { mockPlans, type MockPlanTarifaire, type StatutPlanTarifaire } from "@/lib/mock-data";
-import { isSoftDeleted, softDeleteTimestamp } from "@/lib/soft-delete";
-import { apiRequest } from "@/lib/api/client";
 import { mapAdminPlanToMockPlan } from "@/lib/api/adapters";
+import type {
+  AdminPlanApi,
+  AdminPlanCreateResponse,
+  AdminPlanUpdateResponse,
+  AdminPlansListResponse,
+} from "@/lib/api/admin-types";
+import { apiRequest, isApiConfigured } from "@/lib/api/client";
+import { messageFromApiError, SESSION_REQUIRED_MESSAGE } from "@/lib/api/errors";
+import { unwrapListData } from "@/lib/api/pagination";
+import { isAdminListApiReady } from "@/lib/api/admin-list-fetch";
+import { ADMIN_ROUTES } from "@/lib/api/routes";
+import { buildPlanCreateBody, buildPlanUpdateBody } from "@/lib/admin/validators";
+import { isSoftDeleted, softDeleteTimestamp } from "@/lib/soft-delete";
+import type { PlanType } from "@/types/admin";
 
 const PLANS_KEY = "bibliotech_plans";
+
+let apiCache: MockPlanTarifaire[] | null = null;
+
+const VALID_PLAN_CODES: PlanType[] = ["HEBDOMADAIRE", "MENSUEL", "ANNUEL"];
+
+export function resetPlansListCache(): void {
+  apiCache = null;
+}
 
 function isBrowser(): boolean {
   return typeof window !== "undefined";
@@ -26,59 +46,16 @@ function writePlans(plans: MockPlanTarifaire[]): void {
   localStorage.setItem(PLANS_KEY, JSON.stringify(plans));
 }
 
-function isValidPlan(p: unknown): p is MockPlanTarifaire {
-  if (!p || typeof p !== "object") return false;
-  const row = p as Record<string, unknown>;
-  return (
-    typeof row.id === "string" &&
-    typeof row.code === "string" &&
-    typeof row.nom === "string" &&
-    typeof row.prix === "number" &&
-    ("deletedAt" in row ? row.deletedAt === null || typeof row.deletedAt === "string" : true)
-  );
-}
-
-/** Migre l'ancien format `{ plan: "MENSUEL" }` vers `{ code, nom }`. */
-function normalizeStoredPlans(raw: unknown[]): MockPlanTarifaire[] {
-  return raw
-    .map((item) => {
-      if (isValidPlan(item)) return item;
-      if (!item || typeof item !== "object") return null;
-      const row = item as Record<string, unknown>;
-      const code =
-        typeof row.code === "string"
-          ? row.code
-          : typeof row.plan === "string"
-            ? row.plan
-            : null;
-      if (!code || typeof row.prix !== "number") return null;
-      return {
-        id: typeof row.id === "string" ? row.id : `pl-${code}`,
-        code,
-        nom:
-          typeof row.nom === "string"
-            ? row.nom
-            : slugifyPlanCode(code).replace(/_/g, " ").toLowerCase(),
-        prix: row.prix,
-        dureeJours: typeof row.dureeJours === "number" ? row.dureeJours : 30,
-        statut:
-          row.statut === "INACTIF" ? ("INACTIF" as const) : ("ACTIF" as const),
-        devise: "XAF" as const,
-        deletedAt:
-          typeof row.deletedAt === "string" ? row.deletedAt : null,
-      };
-    })
-    .filter((p): p is MockPlanTarifaire => p != null);
+function setCache(plans: MockPlanTarifaire[]): void {
+  apiCache = plans;
+  writePlans(plans);
 }
 
 export function ensurePlans(): MockPlanTarifaire[] {
-  const stored = readPlans();
-  let plans =
-    stored.length > 0 ? normalizeStoredPlans(stored) : [];
+  if (apiCache?.length) return apiCache;
+  let plans = readPlans();
   if (plans.length === 0) {
-    plans = mockPlans.map((p) => ({ ...p }));
-    writePlans(plans);
-  } else if (plans.length !== stored.length) {
+    plans = mockPlans.map((p) => ({ ...p, deletedAt: p.deletedAt ?? null }));
     writePlans(plans);
   }
   return plans;
@@ -105,61 +82,12 @@ export function slugifyPlanCode(nom: string): string {
     .replace(/^_+|_+$/g, "");
 }
 
-export function createPlan(input: {
-  nom: string;
-  code?: string;
-  prix: number;
-  dureeJours: number;
-  statut?: StatutPlanTarifaire;
-}): MockPlanTarifaire {
-  const plans = ensurePlans();
-  const code = input.code?.trim() || slugifyPlanCode(input.nom);
-  if (!code) {
-    throw new Error("Code plan invalide.");
+function resolvePlanCode(code?: string, nom?: string): PlanType | null {
+  const raw = (code?.trim() || slugifyPlanCode(nom ?? "")).toUpperCase();
+  if (VALID_PLAN_CODES.includes(raw as PlanType)) {
+    return raw as PlanType;
   }
-  if (
-    plans.some((p) => p.code === code && !isSoftDeleted(p.deletedAt))
-  ) {
-    throw new Error("Un plan avec ce code existe déjà.");
-  }
-  const plan: MockPlanTarifaire = {
-    id: `pl-${Date.now()}`,
-    code,
-    nom: input.nom.trim(),
-    prix: input.prix,
-    dureeJours: input.dureeJours,
-    statut: input.statut ?? "ACTIF",
-    devise: "XAF",
-    deletedAt: null,
-  };
-  writePlans([...plans, plan]);
-  return plan;
-}
-
-export function updatePlan(
-  id: string,
-  patch: Partial<
-    Pick<MockPlanTarifaire, "nom" | "prix" | "dureeJours" | "statut">
-  >
-): MockPlanTarifaire | null {
-  const plans = ensurePlans();
-  const idx = plans.findIndex((p) => p.id === id);
-  if (idx < 0) return null;
-  const updated = { ...plans[idx]!, ...patch };
-  const next = [...plans];
-  next[idx] = updated;
-  writePlans(next);
-  return updated;
-}
-
-export function deletePlan(id: string): boolean {
-  const plans = ensurePlans();
-  const idx = plans.findIndex((p) => p.id === id);
-  if (idx < 0) return false;
-  const next = [...plans];
-  next[idx] = { ...next[idx]!, deletedAt: softDeleteTimestamp() };
-  writePlans(next);
-  return true;
+  return null;
 }
 
 export function getPlanLabel(code: string): string {
@@ -173,27 +101,28 @@ export function getPlanLabel(code: string): string {
   return fallback[code] ?? code;
 }
 
-type AdminPlansResponse = Array<{
-  id: string;
-  plan: string;
-  prix: number;
-  devise: string;
-  duree_jours: number;
-  statut: "ACTIF" | "INACTIF";
-}>;
-
+/**
+ * Liste admin — GET /admin/plans.
+ * Tous statuts (ACTIF, INACTIF). Champs : id, plan, prix, devise, duree_jours, statut.
+ */
 export async function fetchPlansPersisted(): Promise<MockPlanTarifaire[]> {
+  if (!isApiConfigured()) {
+    return getAllPlans();
+  }
+  if (!isAdminListApiReady()) {
+    return [];
+  }
+
   try {
-    const rows = await apiRequest<AdminPlansResponse>("/admin/plans");
-    if (!Array.isArray(rows)) return getAllPlans();
+    const payload = await apiRequest<AdminPlansListResponse>(
+      ADMIN_ROUTES.plans.list
+    );
+    const rows = unwrapListData<AdminPlanApi>(payload);
     const mapped = rows.map(mapAdminPlanToMockPlan);
-    if (mapped.length > 0) {
-      writePlans(mapped);
-      return mapped;
-    }
-    return getAllPlans();
+    setCache(mapped);
+    return mapped;
   } catch {
-    return getAllPlans();
+    return [];
   }
 }
 
@@ -203,44 +132,191 @@ export async function createPlanPersisted(input: {
   prix: number;
   dureeJours: number;
   statut?: StatutPlanTarifaire;
-}): Promise<MockPlanTarifaire> {
-  try {
-    const planCode = input.code?.trim() || slugifyPlanCode(input.nom);
-    await apiRequest("/admin/plans", {
-      method: "POST",
-      body: JSON.stringify({
-        plan: planCode,
-        prix: input.prix,
-        devise: "XAF",
-        duree_jours: input.dureeJours,
-        statut: input.statut ?? "ACTIF",
-      }),
-    });
-  } catch {
-    // fallback local
+}): Promise<
+  { ok: true; plan: MockPlanTarifaire } | { ok: false; error: string }
+> {
+  const planCode = resolvePlanCode(input.code, input.nom);
+  if (!planCode) {
+    return {
+      ok: false,
+      error: "Code plan invalide (HEBDOMADAIRE, MENSUEL ou ANNUEL).",
+    };
   }
-  return createPlan(input);
+  if (input.prix < 100) {
+    return { ok: false, error: "Le prix minimum est de 100 XOF." };
+  }
+
+  if (isApiConfigured()) {
+    if (!isAdminListApiReady()) {
+      return { ok: false, error: SESSION_REQUIRED_MESSAGE };
+    }
+
+    try {
+      const created = await apiRequest<AdminPlanCreateResponse>(
+        ADMIN_ROUTES.plans.create,
+        {
+          method: "POST",
+          body: JSON.stringify(
+            buildPlanCreateBody({
+              plan: planCode,
+              prix: input.prix,
+              duree_jours: input.dureeJours,
+            })
+          ),
+        }
+      );
+
+      await fetchPlansPersisted();
+      const plan =
+        getAllPlans().find((p) => p.id === created.id) ??
+        mapAdminPlanToMockPlan({
+          id: created.id,
+          plan: created.plan,
+          prix: created.prix,
+          devise: created.devise,
+          duree_jours: created.duree_jours,
+          statut: created.statut ?? "ACTIF",
+        });
+
+      return { ok: true, plan };
+    } catch (err) {
+      return {
+        ok: false,
+        error: messageFromApiError(err, "Création plan impossible."),
+      };
+    }
+  }
+
+  try {
+    const plan = createPlanLocal(input);
+    return { ok: true, plan };
+  } catch (err) {
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "Création impossible.",
+    };
+  }
 }
 
+/**
+ * Mise à jour admin — PATCH /admin/plans/{id}.
+ * Corps partiel : prix, duree_jours, statut (non rétroactif sur abonnements en cours).
+ */
 export async function updatePlanPersisted(
   id: string,
   patch: Partial<
     Pick<MockPlanTarifaire, "nom" | "prix" | "dureeJours" | "statut">
   >
-): Promise<MockPlanTarifaire | null> {
-  const localUpdated = updatePlan(id, patch);
-  if (!localUpdated) return null;
-  try {
-    await apiRequest(`/admin/plans/${id}`, {
-      method: "PATCH",
-      body: JSON.stringify({
-        prix: patch.prix,
-        duree_jours: patch.dureeJours,
-        statut: patch.statut,
-      }),
+): Promise<
+  { ok: true; plan: MockPlanTarifaire } | { ok: false; error: string }
+> {
+  if (isApiConfigured()) {
+    if (!isAdminListApiReady()) {
+      return { ok: false, error: SESSION_REQUIRED_MESSAGE };
+    }
+    if (patch.prix !== undefined && patch.prix < 100) {
+      return { ok: false, error: "Le prix minimum est de 100 XOF." };
+    }
+
+    const body = buildPlanUpdateBody({
+      prix: patch.prix,
+      duree_jours: patch.dureeJours,
+      statut: patch.statut,
     });
-  } catch {
-    // fallback local
+    if (Object.keys(body).length === 0) {
+      return { ok: false, error: "Aucune modification à enregistrer." };
+    }
+
+    try {
+      await apiRequest<AdminPlanUpdateResponse>(ADMIN_ROUTES.plans.byId(id), {
+        method: "PATCH",
+        body: JSON.stringify(body),
+      });
+
+      await fetchPlansPersisted();
+      const plan = getAllPlans().find((p) => p.id === id);
+      if (!plan) return { ok: false, error: "Plan introuvable." };
+      return { ok: true, plan };
+    } catch (err) {
+      return {
+        ok: false,
+        error: messageFromApiError(err, "Mise à jour plan impossible."),
+      };
+    }
   }
-  return localUpdated;
+
+  const local = updatePlanLocal(id, patch);
+  if (!local) return { ok: false, error: "Plan introuvable." };
+  return { ok: true, plan: local };
+}
+
+export async function deletePlanPersisted(
+  id: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (isApiConfigured()) {
+    const result = await updatePlanPersisted(id, { statut: "INACTIF" });
+    if (!result.ok) return result;
+    return { ok: true };
+  }
+  if (!deletePlanLocal(id)) {
+    return { ok: false, error: "Plan introuvable." };
+  }
+  return { ok: true };
+}
+
+/** @deprecated Utiliser deletePlanPersisted */
+export function deletePlan(id: string): boolean {
+  return deletePlanLocal(id);
+}
+
+function createPlanLocal(input: {
+  nom: string;
+  code?: string;
+  prix: number;
+  dureeJours: number;
+  statut?: StatutPlanTarifaire;
+}): MockPlanTarifaire {
+  const plans = ensurePlans();
+  const code = resolvePlanCode(input.code, input.nom) ?? "MENSUEL";
+  if (plans.some((p) => p.code === code && !isSoftDeleted(p.deletedAt))) {
+    throw new Error("Un plan avec ce code existe déjà.");
+  }
+  const plan: MockPlanTarifaire = {
+    id: `pl-${Date.now()}`,
+    code,
+    nom: input.nom.trim(),
+    prix: input.prix,
+    dureeJours: input.dureeJours,
+    statut: input.statut ?? "ACTIF",
+    devise: "XOF",
+    deletedAt: null,
+  };
+  setCache([...plans, plan]);
+  return plan;
+}
+
+function updatePlanLocal(
+  id: string,
+  patch: Partial<
+    Pick<MockPlanTarifaire, "nom" | "prix" | "dureeJours" | "statut">
+  >
+): MockPlanTarifaire | null {
+  const plans = ensurePlans();
+  const idx = plans.findIndex((p) => p.id === id);
+  if (idx < 0) return null;
+  const updated = { ...plans[idx]!, ...patch };
+  const next = [...plans];
+  next[idx] = updated;
+  setCache(next);
+  return updated;
+}
+
+function deletePlanLocal(id: string): boolean {
+  const plans = ensurePlans();
+  const idx = plans.findIndex((p) => p.id === id);
+  if (idx < 0) return false;
+  const next = [...plans];
+  next[idx] = { ...next[idx]!, deletedAt: softDeleteTimestamp() };
+  setCache(next);
+  return true;
 }

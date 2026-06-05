@@ -1,8 +1,6 @@
-﻿import type { Metadata } from "next";
+import { adminPageMetadata } from "@/config/metadata";
 
-export const metadata: Metadata = {
-  title: "Catégories — B LINKS Admin",
-};
+export const metadata = adminPageMetadata("Catégories");
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   return children;

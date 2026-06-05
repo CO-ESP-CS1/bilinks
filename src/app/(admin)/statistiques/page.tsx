@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import type { ApexOptions } from "apexcharts";
 import { Breadcrumb, adminCrumb } from "@/components/Breadcrumb";
@@ -14,6 +14,22 @@ import {
   mockRepartitionCategories,
   mockAbonnementsChart,
 } from "@/lib/mock-data";
+import { isApiConfigured } from "@/lib/api/client";
+import { hasApiSession } from "@/lib/api/session";
+import type {
+  AdminStatsBooksSort,
+  AdminStatsUsersPeriode,
+} from "@/lib/api/admin-types";
+import {
+  fetchDashboardStats,
+  fetchSearchTermsStats,
+  fetchStatsBooks,
+  fetchStatsUsers,
+  type DashboardView,
+  type SearchTermsFetchResult,
+  type StatsBookRow,
+  type StatsUsersView,
+} from "@/lib/stats-store";
 import {
   Table,
   TableBody,
@@ -46,7 +62,96 @@ const chartBase: ApexOptions = {
   tooltip: { theme: "light" },
 };
 
+const SORT_LABELS: Record<AdminStatsBooksSort, string> = {
+  nb_lectures: "Lectures",
+  note_moyenne: "Note moyenne",
+  nb_terminees: "Terminées",
+  nb_lectures_7j: "Lectures (7 j)",
+};
+
 export default function StatistiquesPage() {
+  const apiMode = isApiConfigured();
+  const apiSessionReady = !apiMode || hasApiSession();
+  const showMock = !apiMode;
+  const [loading, setLoading] = useState(apiMode);
+  const [triLivres, setTriLivres] = useState<AdminStatsBooksSort>("nb_lectures");
+  const [periodeRecherche, setPeriodeRecherche] = useState<"7j" | "30j">("30j");
+  const [sansResultatsUniquement, setSansResultatsUniquement] = useState(false);
+  const [termesRecherche, setTermesRecherche] = useState<SearchTermsFetchResult>({
+    data: [],
+    topSansResultats: [],
+  });
+  const [topLivres, setTopLivres] = useState<StatsBookRow[]>([]);
+  const [periodeUsers, setPeriodeUsers] = useState<AdminStatsUsersPeriode>("30j");
+  const [usersStats, setUsersStats] = useState<StatsUsersView | null>(null);
+  const [dashKpi, setDashKpi] = useState<DashboardView | null>(null);
+
+  useEffect(() => {
+    if (!apiMode) return;
+    let cancelled = false;
+    setLoading(true);
+    void (async () => {
+      const [books, users, dash, search] = await Promise.all([
+        fetchStatsBooks({ sort: triLivres, limit: 10 }),
+        fetchStatsUsers(periodeUsers),
+        fetchDashboardStats(),
+        fetchSearchTermsStats({
+          periode: periodeRecherche,
+          no_results: sansResultatsUniquement || undefined,
+        }),
+      ]);
+      if (cancelled) return;
+      setTopLivres(books.rows);
+      setUsersStats(users);
+      setDashKpi(dash.data);
+      setTermesRecherche(search);
+      setLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    apiMode,
+    triLivres,
+    periodeUsers,
+    periodeRecherche,
+    sansResultatsUniquement,
+  ]);
+
+  useEffect(() => {
+    if (apiMode) return;
+    void fetchStatsBooks({ sort: triLivres, limit: 10 }).then((res) =>
+      setTopLivres(res.rows)
+    );
+  }, [apiMode, triLivres]);
+
+  useEffect(() => {
+    if (apiMode) return;
+    void fetchStatsUsers(periodeUsers).then(setUsersStats);
+  }, [apiMode, periodeUsers]);
+
+  const usersSeries = useMemo(
+    () =>
+      showMock
+        ? mockCroissanceUtilisateurs.map((d) => ({
+            mois: d.mois,
+            count: d.total,
+          }))
+        : (usersStats?.inscriptionsParMois ?? []),
+    [showMock, usersStats]
+  );
+
+  const lecturesData = useMemo(
+    () =>
+      showMock
+        ? mockLecturesParMois.map((d) => ({ mois: d.mois, lectures: d.lectures }))
+        : topLivres.map((l) => ({
+            mois: l.titre.slice(0, 12),
+            lectures: l.nbLectures,
+          })),
+    [showMock, topLivres]
+  );
+
   const lecturesOptions = useMemo<ApexOptions>(
     () => ({
       ...chartBase,
@@ -55,10 +160,10 @@ export default function StatistiquesPage() {
       plotOptions: { bar: { borderRadius: 4, columnWidth: "55%" } },
       xaxis: {
         ...chartBase.xaxis,
-        categories: mockLecturesParMois.map((d) => d.mois),
+        categories: lecturesData.map((d) => d.mois),
       },
     }),
-    []
+    [lecturesData]
   );
 
   const usersOptions = useMemo<ApexOptions>(
@@ -70,36 +175,56 @@ export default function StatistiquesPage() {
       fill: { type: "gradient", gradient: { opacityFrom: 0.4, opacityTo: 0.05 } },
       xaxis: {
         ...chartBase.xaxis,
-        categories: mockCroissanceUtilisateurs.map((d) => d.mois),
+        categories: usersSeries.map((d) => d.mois),
       },
     }),
-    []
+    [usersSeries]
   );
+
+  const repartitionStatut = useMemo(() => {
+    if (showMock) {
+      return mockRepartitionCategories.map(
+        (c) => [c.categorie, c.count] as [string, number]
+      );
+    }
+    return Object.entries(usersStats?.repartitionStatut ?? {});
+  }, [showMock, usersStats]);
 
   const categoriesOptions = useMemo<ApexOptions>(
     () => ({
       chart: { fontFamily: "Outfit, sans-serif", type: "donut" },
-      labels: mockRepartitionCategories.map((c) => c.categorie),
+      labels: repartitionStatut.map(([k]) => k),
       colors: ["#465FFF", "#10B981", "#F59E0B", "#EF4444", "#8B5CF6", "#06B6D4"],
       legend: { position: "bottom", fontFamily: "Outfit, sans-serif" },
       dataLabels: { enabled: true },
     }),
-    []
+    [repartitionStatut]
+  );
+
+  const inscriptionsSeries = useMemo(
+    () =>
+      showMock
+        ? mockAbonnementsChart.map((d) => ({
+            mois: d.mois,
+            count: d.nouveaux,
+          }))
+        : (usersStats?.inscriptionsParMois ?? []),
+    [showMock, usersStats]
   );
 
   const aboOptions = useMemo<ApexOptions>(
     () => ({
       ...chartBase,
       chart: { ...chartBase.chart, type: "line", height: 280 },
-      colors: ["#465FFF", "#10B981"],
+      colors: ["#465FFF"],
       stroke: { curve: "smooth", width: 2 },
       legend: { position: "top" },
       xaxis: {
         ...chartBase.xaxis,
-        categories: mockAbonnementsChart.map((d) => d.mois),
+        categories: inscriptionsSeries.map((d) => d.mois),
       },
     }),
-    []
+    [inscriptionsSeries]
   );
 
   return (
@@ -114,34 +239,59 @@ export default function StatistiquesPage() {
             Statistiques
           </h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Analyses et tendances B LINKS (données de démo)
+            Analyses et tendances B LINKS
           </p>
         </div>
       </div>
 
+      {apiMode && !apiSessionReady && (
+        <div className="rounded-xl border border-warning-500/30 bg-warning-50 px-4 py-3 text-sm text-warning-800 dark:border-warning-500/20 dark:bg-warning-500/10 dark:text-warning-300">
+          Connectez-vous avec un compte <strong>ADMIN</strong> pour charger les
+          statistiques. Sans session active, les graphiques restent vides.
+        </div>
+      )}
+
+      {apiMode && loading && (
+        <p className="text-sm text-gray-500 dark:text-gray-400">Chargement des statistiques…</p>
+      )}
+
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 md:gap-6">
         <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
-          <span className="text-sm text-gray-500 dark:text-gray-400">Lectures (mai)</span>
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            {apiMode ? "Lectures (7 j)" : "Lectures (mai)"}
+          </span>
           <p className="mt-2 text-title-sm font-bold text-gray-800 dark:text-white/90">
-            {formatEntier(mockLecturesParMois.at(-1)?.lectures ?? 0)}
+            {formatEntier(
+              showMock
+                ? (mockLecturesParMois.at(-1)?.lectures ?? 0)
+                : (dashKpi?.nbLectures7j ?? 0)
+            )}
           </p>
         </div>
         <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
           <span className="text-sm text-gray-500 dark:text-gray-400">Utilisateurs</span>
           <p className="mt-2 text-title-sm font-bold text-gray-800 dark:text-white/90">
-            {formatEntier(mockKPIs.totalUtilisateurs)}
+            {formatEntier(
+              showMock ? mockKPIs.totalUtilisateurs : (dashKpi?.totalUtilisateurs ?? 0)
+            )}
           </p>
         </div>
         <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
           <span className="text-sm text-gray-500 dark:text-gray-400">Revenus mensuels</span>
           <p className="mt-2 text-title-sm font-bold text-gray-800 dark:text-white/90">
-            {formatXaf(mockKPIs.revenusMonthly)}
+            {formatXaf(
+              showMock ? mockKPIs.revenusMonthly : (dashKpi?.revenusMonthly ?? 0)
+            )}
           </p>
         </div>
         <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
           <span className="text-sm text-gray-500 dark:text-gray-400">Abonnements actifs</span>
           <p className="mt-2 text-title-sm font-bold text-gray-800 dark:text-white/90">
-            {formatEntier(mockKPIs.abonnementsActifs)}
+            {formatEntier(
+              showMock
+                ? mockKPIs.abonnementsActifs
+                : (usersStats?.nbAbonnesActifs ?? dashKpi?.abonnementsActifs ?? 0)
+            )}
           </p>
         </div>
       </div>
@@ -149,60 +299,188 @@ export default function StatistiquesPage() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:gap-6">
         <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
           <h2 className="mb-4 text-base font-semibold text-gray-800 dark:text-white/90">
-            Lectures par mois
+            {apiMode ? "Top livres par lectures" : "Lectures par mois"}
           </h2>
+          {apiMode && !loading && lecturesData.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Aucun livre avec statistiques.
+            </p>
+          ) : (
           <ReactApexChart
             options={lecturesOptions}
-            series={[{ name: "Lectures", data: mockLecturesParMois.map((d) => d.lectures) }]}
+            series={[{ name: "Lectures", data: lecturesData.map((d) => d.lectures) }]}
             type="bar"
             height={300}
           />
+          )}
         </div>
         <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
-          <h2 className="mb-4 text-base font-semibold text-gray-800 dark:text-white/90">
-            Croissance utilisateurs
-          </h2>
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-base font-semibold text-gray-800 dark:text-white/90">
+              Croissance utilisateurs
+            </h2>
+            {apiMode && (
+              <label className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+                <span>Période</span>
+                <select
+                  className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                  value={periodeUsers}
+                  onChange={(e) =>
+                    setPeriodeUsers(e.target.value as AdminStatsUsersPeriode)
+                  }
+                >
+                  <option value="7j">7 jours</option>
+                  <option value="30j">30 jours</option>
+                  <option value="90j">90 jours</option>
+                  <option value="365j">365 jours</option>
+                </select>
+              </label>
+            )}
+          </div>
+          {apiMode && usersStats && (
+            <div className="mb-4 grid grid-cols-2 gap-3 text-sm">
+              <div className="rounded-lg bg-gray-50 px-3 py-2 dark:bg-white/5">
+                <span className="text-gray-500 dark:text-gray-400">Taux activation</span>
+                <p className="font-semibold text-gray-800 dark:text-white/90">
+                  {usersStats.tauxActivation.toFixed(1)} %
+                </p>
+              </div>
+              <div className="rounded-lg bg-gray-50 px-3 py-2 dark:bg-white/5">
+                <span className="text-gray-500 dark:text-gray-400">Abonnés actifs</span>
+                <p className="font-semibold text-gray-800 dark:text-white/90">
+                  {formatEntier(usersStats.nbAbonnesActifs)}
+                </p>
+              </div>
+            </div>
+          )}
+          {apiMode && !loading && usersSeries.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Aucune inscription sur la période sélectionnée.
+            </p>
+          ) : (
           <ReactApexChart
             options={usersOptions}
-            series={[{ name: "Utilisateurs", data: mockCroissanceUtilisateurs.map((d) => d.total) }]}
+            series={[{ name: "Inscriptions", data: usersSeries.map((d) => d.count) }]}
             type="area"
             height={300}
           />
+          )}
+          {apiMode && usersStats && (
+            <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <h3 className="mb-2 text-sm font-medium text-gray-600 dark:text-gray-300">
+                  Répartition provider
+                </h3>
+                <ul className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                  {Object.entries(usersStats.repartitionProvider).map(([k, v]) => (
+                    <li key={k} className="flex justify-between">
+                      <span>{k}</span>
+                      <span className="font-medium">{formatEntier(v)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <h3 className="mb-2 text-sm font-medium text-gray-600 dark:text-gray-300">
+                  Répartition statut
+                </h3>
+                <ul className="space-y-1 text-sm text-gray-600 dark:text-gray-400">
+                  {Object.entries(usersStats.repartitionStatut).map(([k, v]) => (
+                    <li key={k} className="flex justify-between">
+                      <span>{k}</span>
+                      <span className="font-medium">{formatEntier(v)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 xl:gap-6">
         <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6 lg:col-span-5">
           <h2 className="mb-4 text-base font-semibold text-gray-800 dark:text-white/90">
-            Répartition par catégorie
+            {apiMode ? "Répartition par statut compte" : "Répartition par catégorie"}
           </h2>
-          <ReactApexChart
-            options={categoriesOptions}
-            series={mockRepartitionCategories.map((c) => c.count)}
-            type="donut"
-            height={320}
-          />
+          {apiMode && repartitionStatut.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Aucune donnée disponible.
+            </p>
+          ) : (
+            <ReactApexChart
+              options={categoriesOptions}
+              series={repartitionStatut.map(([, v]) => v)}
+              type="donut"
+              height={320}
+            />
+          )}
         </div>
         <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6 lg:col-span-7">
           <h2 className="mb-4 text-base font-semibold text-gray-800 dark:text-white/90">
-            Abonnements — nouveaux vs renouvellements
+            {apiMode
+              ? "Inscriptions — tendance"
+              : "Abonnements — nouveaux vs renouvellements"}
           </h2>
-          <ReactApexChart
-            options={aboOptions}
-            series={[
-              { name: "Nouveaux", data: mockAbonnementsChart.map((d) => d.nouveaux) },
-              { name: "Renouvellements", data: mockAbonnementsChart.map((d) => d.renouvellements) },
-            ]}
-            type="line"
-            height={280}
-          />
+          {apiMode && inscriptionsSeries.length === 0 ? (
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              Aucune inscription sur la période.
+            </p>
+          ) : (
+            <ReactApexChart
+              options={aboOptions}
+              series={
+                showMock
+                  ? [
+                      {
+                        name: "Nouveaux",
+                        data: mockAbonnementsChart.map((d) => d.nouveaux),
+                      },
+                      {
+                        name: "Renouvellements",
+                        data: mockAbonnementsChart.map((d) => d.renouvellements),
+                      },
+                    ]
+                  : [
+                      {
+                        name: "Inscriptions",
+                        data: inscriptionsSeries.map((d) => d.count),
+                      },
+                    ]
+              }
+              type="line"
+              height={280}
+            />
+          )}
         </div>
       </div>
 
       <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
-        <h2 className="mb-4 text-base font-semibold text-gray-800 dark:text-white/90">
-          Top 5 des livres les plus lus
-        </h2>
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <h2 className="text-base font-semibold text-gray-800 dark:text-white/90">
+            {apiMode ? "Statistiques par livre" : "Top 5 des livres les plus lus"}
+          </h2>
+          {apiMode && (
+            <label className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400">
+              <span>Trier par</span>
+              <select
+                className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                value={triLivres}
+                onChange={(e) =>
+                  setTriLivres(e.target.value as AdminStatsBooksSort)
+                }
+              >
+                {(Object.keys(SORT_LABELS) as AdminStatsBooksSort[]).map(
+                  (key) => (
+                    <option key={key} value={key}>
+                      {SORT_LABELS[key]}
+                    </option>
+                  )
+                )}
+              </select>
+            </label>
+          )}
+        </div>
         <div className="overflow-x-auto">
           <Table>
             <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
@@ -216,24 +494,170 @@ export default function StatistiquesPage() {
                 <TableCell isHeader className="px-4 py-3 text-start text-theme-xs font-medium text-gray-500">
                   Lectures
                 </TableCell>
+                {apiMode && (
+                  <>
+                    <TableCell isHeader className="px-4 py-3 text-start text-theme-xs font-medium text-gray-500">
+                      Terminées
+                    </TableCell>
+                    <TableCell isHeader className="px-4 py-3 text-start text-theme-xs font-medium text-gray-500">
+                      Note
+                    </TableCell>
+                    <TableCell isHeader className="px-4 py-3 text-start text-theme-xs font-medium text-gray-500">
+                      Lectures 7j
+                    </TableCell>
+                  </>
+                )}
               </TableRow>
             </TableHeader>
             <TableBody>
-              {mockTopLivres.map((l, i) => (
-                <TableRow key={l.titre}>
+              {(showMock
+                ? mockTopLivres.map((l, i) => ({
+                    id: `m-${i}`,
+                    titre: l.titre,
+                    nbLectures: l.lectures,
+                    nbTerminees: 0,
+                    noteMoyenne: null,
+                    nbNotes: 0,
+                    nbLectures7j: 0,
+                  }))
+                : topLivres
+              ).map((l, i) => (
+                <TableRow key={l.id}>
                   <TableCell className="px-4 py-3 text-theme-sm text-gray-600">{i + 1}</TableCell>
                   <TableCell className="px-4 py-3 text-theme-sm font-medium text-gray-800 dark:text-white/90">
                     {l.titre}
                   </TableCell>
                   <TableCell className="px-4 py-3 text-theme-sm text-brand-500">
-                    {formatEntier(l.lectures)}
+                    {formatEntier(l.nbLectures)}
                   </TableCell>
+                  {apiMode && (
+                    <>
+                      <TableCell className="px-4 py-3 text-theme-sm text-gray-600">
+                        {formatEntier(l.nbTerminees)}
+                      </TableCell>
+                      <TableCell className="px-4 py-3 text-theme-sm text-gray-600">
+                        {l.noteMoyenne != null ? l.noteMoyenne.toFixed(1) : "—"}
+                      </TableCell>
+                      <TableCell className="px-4 py-3 text-theme-sm text-gray-600">
+                        {formatEntier(l.nbLectures7j)}
+                      </TableCell>
+                    </>
+                  )}
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+          {apiMode && topLivres.length === 0 && (
+            <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+              Aucune statistique livre disponible.
+            </p>
+          )}
         </div>
       </div>
+
+      {apiMode && (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 xl:gap-6">
+          <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6 lg:col-span-8">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <h2 className="text-base font-semibold text-gray-800 dark:text-white/90">
+                Termes de recherche
+              </h2>
+              <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500 dark:text-gray-400">
+                <label className="flex items-center gap-2">
+                  <span>Période</span>
+                  <select
+                    className="rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
+                    value={periodeRecherche}
+                    onChange={(e) =>
+                      setPeriodeRecherche(e.target.value as "7j" | "30j")
+                    }
+                  >
+                    <option value="7j">7 jours</option>
+                    <option value="30j">30 jours</option>
+                  </select>
+                </label>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={sansResultatsUniquement}
+                    onChange={(e) => setSansResultatsUniquement(e.target.checked)}
+                  />
+                  <span>Sans résultats uniquement</span>
+                </label>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
+                  <TableRow>
+                    <TableCell isHeader className="px-4 py-3 text-start text-theme-xs font-medium text-gray-500">
+                      Terme
+                    </TableCell>
+                    <TableCell isHeader className="px-4 py-3 text-start text-theme-xs font-medium text-gray-500">
+                      Recherches
+                    </TableCell>
+                    <TableCell isHeader className="px-4 py-3 text-start text-theme-xs font-medium text-gray-500">
+                      Taux clic
+                    </TableCell>
+                    <TableCell isHeader className="px-4 py-3 text-start text-theme-xs font-medium text-gray-500">
+                      Résultats moy.
+                    </TableCell>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {termesRecherche.data.map((row) => (
+                    <TableRow key={row.terme}>
+                      <TableCell className="px-4 py-3 text-theme-sm font-medium text-gray-800 dark:text-white/90">
+                        {row.terme}
+                      </TableCell>
+                      <TableCell className="px-4 py-3 text-theme-sm text-gray-600">
+                        {formatEntier(row.nb_recherches)}
+                      </TableCell>
+                      <TableCell className="px-4 py-3 text-theme-sm text-gray-600">
+                        {row.taux_clic.toFixed(1)} %
+                      </TableCell>
+                      <TableCell className="px-4 py-3 text-theme-sm text-gray-600">
+                        {row.nb_resultats_moyen.toFixed(1)}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              {termesRecherche.data.length === 0 && (
+                <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                  Aucun terme sur la période.
+                </p>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6 lg:col-span-4">
+            <h2 className="mb-4 text-base font-semibold text-gray-800 dark:text-white/90">
+              Top sans résultats
+            </h2>
+            <ul className="space-y-3">
+              {termesRecherche.topSansResultats.map((row) => (
+                <li
+                  key={row.terme}
+                  className="flex items-center justify-between text-sm"
+                >
+                  <span className="font-medium text-gray-800 dark:text-white/90">
+                    {row.terme}
+                  </span>
+                  <span className="text-gray-500 dark:text-gray-400">
+                    {formatEntier(row.nb_recherches)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {termesRecherche.topSansResultats.length === 0 && (
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Aucune recherche sans résultat sur la période.
+              </p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

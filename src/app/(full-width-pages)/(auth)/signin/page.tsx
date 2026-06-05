@@ -1,11 +1,8 @@
 ﻿import SignInForm from "@/components/auth/SignInForm";
-import { Metadata } from "next";
+import { signInPageMetadata } from "@/config/metadata";
 import { Suspense } from "react";
 
-export const metadata: Metadata = {
-  title: "Connexion — B LINKS Admin",
-  description: "Connexion à la console d'administration B LINKS",
-};
+export const metadata = signInPageMetadata();
 
 export default function SignIn() {
   return (

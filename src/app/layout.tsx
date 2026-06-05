@@ -1,5 +1,4 @@
-import { BRAND_NAME } from "@/config/brand";
-import type { Metadata } from "next";
+import { rootMetadata } from "@/config/metadata";
 import { Outfit } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
@@ -11,9 +10,7 @@ const outfit = Outfit({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: `${BRAND_NAME} — Administration`,
-};
+export const metadata = rootMetadata;
 
 export default function RootLayout({
   children,

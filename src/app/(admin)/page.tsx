@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import type { ApexOptions } from "apexcharts";
@@ -9,8 +9,21 @@ import {
   mockAbonnementsChart,
   mockPlanRepartition,
   mockActiviteRecente,
+  type MockPlanTarifaire,
   type PlanType,
 } from "@/lib/mock-data";
+import {
+  fetchDashboardAlerts,
+  fetchDashboardStats,
+  fetchStatsUsers,
+  type DashboardAlerts,
+  type DashboardFetchResult,
+  type DashboardView,
+} from "@/lib/stats-store";
+import { isApiConfigured } from "@/lib/api/client";
+import { hasApiSession } from "@/lib/api/session";
+import { fetchPlansPersisted } from "@/lib/plans-store";
+import { fetchSubscriptionsPersisted } from "@/lib/subscriptions-store";
 import {
   ChatIcon,
   CheckCircleIcon,
@@ -34,11 +47,119 @@ function formatEntierFr(n: number): string {
   return new Intl.NumberFormat("fr-FR").format(n);
 }
 
+function aggregateInscriptionsByMonth(
+  points: Array<{ date: string; count: number }>
+): Array<{ mois: string; count: number }> {
+  const byMonth = new Map<string, number>();
+  for (const p of points) {
+    const key = p.date.slice(0, 7);
+    byMonth.set(key, (byMonth.get(key) ?? 0) + p.count);
+  }
+  return [...byMonth.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-6)
+    .map(([ym, count]) => ({
+      mois: ym.slice(5) + "/" + ym.slice(2, 4),
+      count,
+    }));
+}
+
 export default function Page() {
+  const apiMode = isApiConfigured();
+  const [dashResult, setDashResult] = useState<DashboardFetchResult | null>(
+    null
+  );
+  const [alerts, setAlerts] = useState<DashboardAlerts | null>(null);
+  const [inscriptionsMois, setInscriptionsMois] = useState<
+    Array<{ mois: string; count: number }>
+  >([]);
+  const [plansApi, setPlansApi] = useState<MockPlanTarifaire[]>([]);
+  const [abonnesParPlan, setAbonnesParPlan] = useState<
+    Partial<Record<PlanType, number>>
+  >({});
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+
+    void (async () => {
+      const [dash, alertRows, usersStats, plans, subs] = await Promise.all([
+        fetchDashboardStats(),
+        fetchDashboardAlerts(),
+        apiMode && hasApiSession()
+          ? fetchStatsUsers("90j")
+          : Promise.resolve(null),
+        apiMode && hasApiSession()
+          ? fetchPlansPersisted()
+          : Promise.resolve([]),
+        apiMode && hasApiSession()
+          ? fetchSubscriptionsPersisted({ statut: "ACTIF" })
+          : Promise.resolve([]),
+      ]);
+
+      if (cancelled) return;
+
+      setDashResult(dash);
+      setAlerts(alertRows);
+      if (usersStats?.inscriptionsParJour?.length) {
+        setInscriptionsMois(
+          aggregateInscriptionsByMonth(usersStats.inscriptionsParJour)
+        );
+      } else {
+        setInscriptionsMois([]);
+      }
+
+      setPlansApi(plans.filter((p) => p.statut === "ACTIF"));
+      const counts: Partial<Record<PlanType, number>> = {};
+      for (const s of subs) {
+        if (s.statut !== "ACTIF") continue;
+        const code = s.plan as PlanType;
+        counts[code] = (counts[code] ?? 0) + 1;
+      }
+      setAbonnesParPlan(counts);
+      setLoading(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [apiMode]);
+
+  const useMockDashboard = !apiMode || dashResult?.source === "mock";
+  const kpi: DashboardView =
+    dashResult?.data ??
+    (useMockDashboard
+      ? {
+          totalLivres: mockKPIs.totalLivres,
+          totalUtilisateurs: mockKPIs.totalUtilisateurs,
+          abonnementsActifs: mockKPIs.abonnementsActifs,
+          revenusMonthly: mockKPIs.revenusMonthly,
+          livresAjoutes: mockKPIs.livresAjoutes,
+          nouveauxUsersHebdo: mockKPIs.nouveauxUsersHebdo,
+          nbLectures7j: 0,
+          nbPaiementsSucces7j: 0,
+          topLivres: [],
+        }
+      : {
+          totalLivres: 0,
+          totalUtilisateurs: 0,
+          abonnementsActifs: 0,
+          revenusMonthly: 0,
+          livresAjoutes: 0,
+          nouveauxUsersHebdo: 0,
+          nbLectures7j: 0,
+          nbPaiementsSucces7j: 0,
+          topLivres: [],
+        });
+
   const refAbonnesMensuel = useMemo(() => {
+    if (!useMockDashboard && plansApi.length) {
+      return abonnesParPlan.MENSUEL ?? 1;
+    }
     const m = mockPlanRepartition.find((p) => p.plan === "MENSUEL");
     return m?.count ?? 1;
-  }, []);
+  }, [useMockDashboard, plansApi.length, abonnesParPlan]);
 
   const chartOptions = useMemo<ApexOptions>(
     () => ({
@@ -80,7 +201,9 @@ export default function Page() {
         yaxis: { lines: { show: true } },
       },
       xaxis: {
-        categories: mockAbonnementsChart.map((d) => d.mois),
+        categories: useMockDashboard
+          ? mockAbonnementsChart.map((d) => d.mois)
+          : inscriptionsMois.map((d) => d.mois),
         axisBorder: { show: false },
         axisTicks: { show: false },
         labels: {
@@ -99,24 +222,34 @@ export default function Page() {
         },
       },
     }),
-    []
+    [useMockDashboard, inscriptionsMois]
   );
 
   const chartSeries = useMemo(
-    () => [
-      {
-        name: "Nouveaux abonnements",
-        data: mockAbonnementsChart.map((d) => d.nouveaux),
-      },
-      {
-        name: "Renouvellements",
-        data: mockAbonnementsChart.map((d) => d.renouvellements),
-      },
-    ],
-    []
+    () =>
+      useMockDashboard
+        ? [
+            {
+              name: "Nouveaux abonnements",
+              data: mockAbonnementsChart.map((d) => d.nouveaux),
+            },
+            {
+              name: "Renouvellements",
+              data: mockAbonnementsChart.map((d) => d.renouvellements),
+            },
+          ]
+        : [
+            {
+              name: "Inscriptions",
+              data: inscriptionsMois.map((d) => d.count),
+            },
+          ],
+    [useMockDashboard, inscriptionsMois]
   );
 
-  const derniersNouveaux = mockAbonnementsChart.at(-1)?.nouveaux ?? 0;
+  const derniersNouveaux = useMockDashboard
+    ? (mockAbonnementsChart.at(-1)?.nouveaux ?? 0)
+    : (inscriptionsMois.at(-1)?.count ?? 0);
 
   return (
     <div className="space-y-6">
@@ -126,8 +259,22 @@ export default function Page() {
           Tableau de bord
         </h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Vue d&apos;ensemble B LINKS — données de démonstration
+          {!apiMode
+            ? "Vue d’ensemble — données de démonstration"
+            : dashResult?.source === "api"
+              ? "Vue d’ensemble de la plateforme B LINKS"
+              : dashResult?.source === "unavailable"
+                ? "Vue d’ensemble — données indisponibles"
+                : "Vue d’ensemble"}
         </p>
+        {apiMode && dashResult?.error && (
+          <p className="mt-2 rounded-lg border border-warning-500/40 bg-warning-50 px-3 py-2 text-sm text-warning-700 dark:bg-warning-500/10 dark:text-warning-400">
+            {dashResult.error}
+          </p>
+        )}
+        {loading && apiMode && (
+          <p className="mt-2 text-sm text-gray-400">Chargement des statistiques…</p>
+        )}
       </div>
 
       {/* Section 1 — KPIs */}
@@ -139,10 +286,12 @@ export default function Page() {
           <div className="mt-5">
             <span className="text-sm text-gray-500 dark:text-gray-400">Total livres</span>
             <h4 className="mt-2 text-title-sm font-bold text-gray-800 dark:text-white/90">
-              {formatEntierFr(mockKPIs.totalLivres)}
+              {formatEntierFr(kpi.totalLivres)}
             </h4>
             <p className="mt-2 text-sm font-medium text-success-600 dark:text-success-500">
-              +{mockKPIs.livresAjoutes} livres
+              {kpi.livresAjoutes > 0
+                ? `+${kpi.livresAjoutes} livres`
+                : `${formatEntierFr(kpi.nbLectures7j)} lectures (7j)`}
             </p>
           </div>
         </AnimatedCard>
@@ -154,10 +303,10 @@ export default function Page() {
           <div className="mt-5">
             <span className="text-sm text-gray-500 dark:text-gray-400">Utilisateurs</span>
             <h4 className="mt-2 text-title-sm font-bold text-gray-800 dark:text-white/90">
-              {formatEntierFr(mockKPIs.totalUtilisateurs)}
+              {formatEntierFr(kpi.totalUtilisateurs)}
             </h4>
             <p className="mt-2 text-sm font-medium text-success-600 dark:text-success-500">
-              +{mockKPIs.nouveauxUsersHebdo} cette semaine
+              +{kpi.nouveauxUsersHebdo} inscriptions (7j)
             </p>
           </div>
         </AnimatedCard>
@@ -169,10 +318,12 @@ export default function Page() {
           <div className="mt-5">
             <span className="text-sm text-gray-500 dark:text-gray-400">Abonnements actifs</span>
             <h4 className="mt-2 text-title-sm font-bold text-gray-800 dark:text-white/90">
-              {formatEntierFr(mockKPIs.abonnementsActifs)}
+              {formatEntierFr(kpi.abonnementsActifs)}
             </h4>
             <p className="mt-2 text-sm font-medium text-success-600 dark:text-success-500">
-              +{derniersNouveaux} nouveaux en mai
+              {useMockDashboard
+                ? `+${derniersNouveaux} nouveaux en mai`
+                : `${formatEntierFr(kpi.nbPaiementsSucces7j)} paiements succès (7j)`}
             </p>
           </div>
         </AnimatedCard>
@@ -184,10 +335,10 @@ export default function Page() {
           <div className="mt-5">
             <span className="text-sm text-gray-500 dark:text-gray-400">Revenus du mois</span>
             <h4 className="mt-2 text-title-sm font-bold text-gray-800 dark:text-white/90">
-              {formatXaf(mockKPIs.revenusMonthly)}
+              {formatXaf(kpi.revenusMonthly)}
             </h4>
             <p className="mt-2 text-sm font-medium text-warning-600 dark:text-orange-400">
-              +{mockKPIs.paiementsEnAttente} en attente
+              Mois en cours
             </p>
           </div>
         </AnimatedCard>
@@ -197,15 +348,23 @@ export default function Page() {
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 xl:gap-6">
         <AnimatedCard className="p-5 md:p-6 lg:col-span-8" delay={280}>
           <h3 className="mb-4 text-base font-semibold text-gray-800 dark:text-white/90">
-            Évolution des abonnements — 6 derniers mois
+            {useMockDashboard
+              ? "Évolution des abonnements — 6 derniers mois"
+              : "Inscriptions — 6 derniers mois"}
           </h3>
           <div className="min-h-[320px] w-full">
-            <ReactApexChart
-              options={chartOptions}
-              series={chartSeries}
-              type="area"
-              height={320}
-            />
+            {!useMockDashboard && inscriptionsMois.length === 0 ? (
+              <p className="flex h-[320px] items-center justify-center text-sm text-gray-500">
+                Aucune inscription sur la période.
+              </p>
+            ) : (
+              <ReactApexChart
+                options={chartOptions}
+                series={chartSeries}
+                type="area"
+                height={320}
+              />
+            )}
           </div>
         </AnimatedCard>
 
@@ -213,26 +372,35 @@ export default function Page() {
           <h3 className="animate-fade-in-up text-base font-semibold text-gray-800 dark:text-white/90 lg:px-1" style={{ animationDelay: "320ms" }}>
             Répartition des plans
           </h3>
-          {mockPlanRepartition.map((row, planIdx) => {
+          {(useMockDashboard ? mockPlanRepartition : plansApi).map((row, planIdx) => {
+            const planCode = (useMockDashboard
+              ? (row as (typeof mockPlanRepartition)[0]).plan
+              : (row as MockPlanTarifaire).code) as PlanType;
+            const prix = useMockDashboard
+              ? (row as (typeof mockPlanRepartition)[0]).prix
+              : (row as MockPlanTarifaire).prix;
+            const count = useMockDashboard
+              ? (row as (typeof mockPlanRepartition)[0]).count
+              : (abonnesParPlan[planCode] ?? 0);
             const pct = Math.min(
               100,
-              Math.round((row.count / refAbonnesMensuel) * 100)
+              Math.round((count / refAbonnesMensuel) * 100)
             );
             return (
               <AnimatedCard
-                key={row.plan}
+                key={planCode}
                 className="p-5"
                 delay={360 + planIdx * 80}
               >
                 <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
-                  {getPlanLabel(row.plan)}
+                  {getPlanLabel(planCode)}
                 </p>
                 <p className="mt-1 text-lg font-bold text-gray-800 dark:text-white/90">
-                  {formatXaf(row.prix)}
+                  {formatXaf(prix)}
                 </p>
                 <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
                   <span className="font-semibold text-gray-800 dark:text-white/90">
-                    {formatEntierFr(row.count)}
+                    {formatEntierFr(count)}
                   </span>{" "}
                   abonnés actifs
                 </p>
@@ -253,13 +421,45 @@ export default function Page() {
         </div>
       </div>
 
-      {/* Section 4 — Activité récente */}
+      {/* Section 4 — Top 5 livres (API) */}
+      {!useMockDashboard && kpi.topLivres.length > 0 && (
+        <AnimatedCard className="p-5 md:p-6" delay={380}>
+          <h3 className="mb-4 text-base font-semibold text-gray-800 dark:text-white/90">
+            Top 5 des livres les plus lus
+          </h3>
+          <ul className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+            {kpi.topLivres.map((livre, i) => (
+              <li
+                key={`${livre.titre}-${i}`}
+                className="flex flex-col gap-1 py-3 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div>
+                  <p className="text-sm font-medium text-gray-800 dark:text-white/90">
+                    <span className="mr-2 text-gray-400">{i + 1}.</span>
+                    {livre.titre}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {livre.typeLivre}
+                    {livre.note != null ? ` · note ${livre.note.toFixed(1)}` : ""}
+                  </p>
+                </div>
+                <p className="text-sm font-semibold text-brand-500">
+                  {formatEntierFr(livre.lectures)} lectures
+                </p>
+              </li>
+            ))}
+          </ul>
+        </AnimatedCard>
+      )}
+
+      {/* Section 5 — Activité récente */}
       <AnimatedCard className="p-5 md:p-6" delay={400}>
         <h3 className="mb-4 text-base font-semibold text-gray-800 dark:text-white/90">
           Activité récente
         </h3>
         <ul className="space-y-4">
-          {mockActiviteRecente.map((item, i) => {
+          {useMockDashboard ? (
+          mockActiviteRecente.map((item, i) => {
             const styles: Record<
               string,
               { wrap: string; icon: string; Icon: typeof UserIcon }
@@ -313,7 +513,12 @@ export default function Page() {
                 </div>
               </li>
             );
-          })}
+          })
+          ) : (
+            <li className="text-sm text-gray-500 dark:text-gray-400">
+              Aucune activité récente à afficher.
+            </li>
+          )}
         </ul>
       </AnimatedCard>
 
@@ -341,8 +546,9 @@ export default function Page() {
                 Paiements en attente
               </h4>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                {mockKPIs.paiementsEnAttente} paiements en attente de
-                confirmation
+                {useMockDashboard
+                  ? `${mockKPIs.paiementsEnAttente} paiements en attente de confirmation`
+                  : `${formatEntierFr(alerts?.paiementsEnAttente ?? 0)} paiements en attente de confirmation`}
               </p>
             </div>
           </div>
@@ -376,7 +582,9 @@ export default function Page() {
                 Modération
               </h4>
               <p className="text-sm text-gray-600 dark:text-gray-400">
-                {mockKPIs.commentairesAModerer} commentaires à modérer
+                {useMockDashboard
+                  ? `${mockKPIs.commentairesAModerer} commentaires à modérer`
+                  : `${formatEntierFr(alerts?.commentairesAModerer ?? 0)} commentaires à modérer`}
               </p>
             </div>
           </div>

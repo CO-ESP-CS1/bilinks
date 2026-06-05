@@ -5,7 +5,7 @@ import React from "react";
 type EmptyStateProps = {
   icon: React.ReactNode;
   message: string;
-  onReset: () => void;
+  onReset?: () => void;
   resetLabel?: string;
 };
 
@@ -23,13 +23,15 @@ export function EmptyState({
       <p className="max-w-md text-sm text-gray-600 dark:text-gray-400">
         {message}
       </p>
-      <button
-        type="button"
-        onClick={onReset}
-        className="mt-6 rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600"
-      >
-        {resetLabel}
-      </button>
+      {onReset && (
+        <button
+          type="button"
+          onClick={onReset}
+          className="mt-6 rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600"
+        >
+          {resetLabel}
+        </button>
+      )}
     </div>
   );
 }

@@ -1,13 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  buildAlertsNotificationFeed,
   countUnreadAdminNotifications,
   getAdminNotificationFeed,
   type AdminNotificationFeedItem,
   type NotificationFeedType,
 } from "@/lib/admin-notifications-feed";
+import { isApiConfigured } from "@/lib/api/client";
+import { fetchDashboardAlerts } from "@/lib/stats-store";
 import {
   BellIcon,
   ChatIcon,
@@ -127,9 +130,28 @@ function NotificationRow({
 export default function NotificationDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const [lue, setLue] = useState(false);
+  const [feed, setFeed] = useState<AdminNotificationFeedItem[]>(() =>
+    isApiConfigured() ? [] : getAdminNotificationFeed()
+  );
 
-  const feed = useMemo(() => getAdminNotificationFeed(), []);
-  const badgeCount = useMemo(() => countUnreadAdminNotifications(), []);
+  useEffect(() => {
+    if (!isApiConfigured()) {
+      setFeed(getAdminNotificationFeed());
+      return;
+    }
+
+    let cancelled = false;
+    void fetchDashboardAlerts().then((alerts) => {
+      if (cancelled) return;
+      setFeed(alerts ? buildAlertsNotificationFeed(alerts) : []);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const badgeCount = countUnreadAdminNotifications(feed);
 
   function toggleDropdown() {
     setIsOpen((prev) => !prev);

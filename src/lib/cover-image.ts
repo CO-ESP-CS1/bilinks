@@ -17,6 +17,7 @@ const ACCEPTED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
 
 export type ProcessedCover = {
   dataUrl: string;
+  file: File;
   width: number;
   height: number;
   bytesApprox: number;
@@ -115,11 +116,26 @@ export async function processCoverImage(file: File): Promise<ProcessedCover> {
     dataUrl = canvas.toDataURL("image/jpeg", quality);
   }
 
+  const blob = await new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (result) => {
+        if (!result) {
+          reject(new Error("Impossible d’exporter la couverture."));
+          return;
+        }
+        resolve(result);
+      },
+      "image/jpeg",
+      quality
+    );
+  });
+
   return {
     dataUrl,
+    file: new File([blob], "couverture.jpg", { type: "image/jpeg" }),
     width: canvas.width,
     height: canvas.height,
-    bytesApprox: dataUrlByteSize(dataUrl),
+    bytesApprox: blob.size,
   };
 }
 

@@ -6,10 +6,12 @@ import toast from "react-hot-toast";
 import { Breadcrumb, adminCrumb } from "@/components/Breadcrumb";
 import { EmptyState } from "@/components/EmptyState";
 import type { MockAuteur } from "@/lib/mock-data";
+import { isApiConfigured } from "@/lib/api/client";
 import {
-  createAuteur,
+  createAuteurPersisted,
+  fetchAuteursPersisted,
   getAllAuteurs,
-  softDeleteAuteur,
+  softDeleteAuteurPersisted,
 } from "@/lib/auteurs-store";
 import Button from "@/components/ui/button/Button";
 import Badge from "@/components/ui/badge/Badge";
@@ -51,24 +53,35 @@ function initiales(nom: string, prenom: string): string {
 export default function AuteursPage() {
   const router = useRouter();
   const [auteurs, setAuteurs] = useState<MockAuteur[]>([]);
+  const [loading, setLoading] = useState(true);
+  const apiMode = isApiConfigured();
   const [modalOuvert, setModalOuvert] = useState(false);
   const [modalKey, setModalKey] = useState(0);
   const [supprimerCible, setSupprimerCible] = useState<MockAuteur | null>(null);
 
-  const refresh = useCallback(() => {
-    setAuteurs(getAllAuteurs(true));
-  }, []);
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    const list = apiMode
+      ? await fetchAuteursPersisted()
+      : getAllAuteurs(true);
+    setAuteurs(list);
+    setLoading(false);
+  }, [apiMode]);
 
   useEffect(() => {
-    refresh();
+    void refresh();
   }, [refresh]);
 
-  const confirmerSuppression = useCallback(() => {
+  const confirmerSuppression = useCallback(async () => {
     if (!supprimerCible) return;
-    softDeleteAuteur(supprimerCible.id);
-    refresh();
+    const result = await softDeleteAuteurPersisted(supprimerCible.id);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    await refresh();
     toast.success(
-      `« ${[supprimerCible.prenom, supprimerCible.nom].filter(Boolean).join(" ")} » marqué comme supprimé (soft delete).`
+      `« ${[supprimerCible.prenom, supprimerCible.nom].filter(Boolean).join(" ")} » supprimé.`
     );
     setSupprimerCible(null);
   }, [supprimerCible, refresh]);
@@ -95,18 +108,17 @@ export default function AuteursPage() {
         </Button>
       </div>
 
-      <div className="rounded-xl border border-amber-500/30 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-500/25 dark:bg-amber-500/10 dark:text-amber-100">
-        La suppression est un <strong>soft delete</strong> : la donnée reste
-        en base, les livres liés restent cohérents.
-      </div>
+      {loading && (
+        <p className="text-sm text-gray-500 dark:text-gray-400">Chargement…</p>
+      )}
 
-      {auteurs.length === 0 ? (
+      {!loading && auteurs.length === 0 ? (
         <EmptyState
           icon={<PencilIcon className="size-7" />}
           message="Aucun auteur à afficher."
           onReset={refresh}
         />
-      ) : (
+      ) : !loading ? (
         <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
           <div className="max-w-full overflow-x-auto">
             <div className="min-w-[720px]">
@@ -118,7 +130,7 @@ export default function AuteursPage() {
                       "Nom",
                       "Prénom",
                       "Nb livres",
-                      "Statut (soft delete)",
+                      "Statut",
                       "Actions",
                     ].map((col) => (
                       <TableCell
@@ -193,7 +205,7 @@ export default function AuteursPage() {
             </div>
           </div>
         </div>
-      )}
+      ) : null}
 
       <ConfirmDialog
         isOpen={supprimerCible != null}
@@ -205,8 +217,8 @@ export default function AuteursPage() {
             <>
               « {[supprimerCible.prenom, supprimerCible.nom]
                 .filter(Boolean)
-                .join(" ")} » sera marqué comme supprimé (soft delete). Les livres
-              liés restent en base.
+                .join(" ")} » sera supprimé. Les livres liés restent en base.
+              Impossible si un défi <strong>actif</strong> référence cet auteur.
             </>
           ) : null
         }
@@ -221,8 +233,8 @@ export default function AuteursPage() {
       >
         <AjouterAuteurForm
           key={modalKey}
-          onSuccess={() => {
-            refresh();
+          onSuccess={async () => {
+            await refresh();
             setModalOuvert(false);
             toast.success("Auteur enregistré.");
           }}
@@ -233,28 +245,34 @@ export default function AuteursPage() {
   );
 }
 
-function AjouterAuteurForm({ onSuccess }: { onSuccess: () => void }) {
+function AjouterAuteurForm({
+  onSuccess,
+}: {
+  onSuccess: () => void | Promise<void>;
+}) {
   const [prenom, setPrenom] = useState("");
   const [nom, setNom] = useState("");
   const [bio, setBio] = useState("");
   const [errNom, setErrNom] = useState(false);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nom.trim()) {
       setErrNom(true);
       return;
     }
     setErrNom(false);
-    const result = createAuteur({
+    const result = await createAuteurPersisted({
       prenom: prenom.trim(),
       nom: nom.trim(),
+      bio,
     });
     if (!result.ok) {
+      toast.error(result.error);
       setErrNom(true);
       return;
     }
-    onSuccess();
+    await onSuccess();
   };
 
   return (

@@ -1,6 +1,8 @@
 "use client";
 
 import { useAuth } from "@/context/AuthContext";
+import { isApiConfigured } from "@/lib/api/client";
+import { hasApiSession } from "@/lib/api/session";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 
@@ -8,14 +10,16 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { admin, isReady } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const apiMode = isApiConfigured();
+  const sessionOk = !apiMode || hasApiSession();
 
   useEffect(() => {
     if (!isReady) return;
-    if (!admin) {
+    if (!admin || !sessionOk) {
       const redirect = encodeURIComponent(pathname);
       router.replace(`/signin?redirect=${redirect}`);
     }
-  }, [admin, isReady, pathname, router]);
+  }, [admin, isReady, pathname, router, sessionOk]);
 
   if (!isReady) {
     return (
@@ -27,7 +31,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (!admin) {
+  if (!admin || !sessionOk) {
     return null;
   }
 

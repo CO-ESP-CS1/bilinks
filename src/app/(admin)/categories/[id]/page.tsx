@@ -5,7 +5,10 @@ import Link from "next/link";
 import { useParams, notFound } from "next/navigation";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import type { MockCategorie } from "@/lib/mock-data";
-import { getCategoryById } from "@/lib/categories-store";
+import {
+  fetchCategoriesPersisted,
+  getCategoryById,
+} from "@/lib/categories-store";
 import Button from "@/components/ui/button/Button";
 import Badge from "@/components/ui/badge/Badge";
 import { PencilIcon } from "@/icons";
@@ -21,8 +24,16 @@ export default function CategorieDetailPage() {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    setCategorie(getCategoryById(id));
-    setLoaded(true);
+    let cancelled = false;
+    (async () => {
+      await fetchCategoriesPersisted();
+      if (cancelled) return;
+      setCategorie(getCategoryById(id));
+      setLoaded(true);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [id]);
 
   if (!loaded) {

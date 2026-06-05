@@ -1,14 +1,11 @@
 "use client";
 
-import React, { useMemo, useState, useCallback } from "react";
+import React, { useMemo, useState, useCallback, useEffect } from "react";
 import { Breadcrumb, adminCrumb } from "@/components/Breadcrumb";
 import { EmptyState } from "@/components/EmptyState";
-import {
-  mockPaiements,
-  type MockPaiement,
-  type PlanType,
-  type StatutPaiement,
-} from "@/lib/mock-data";
+import type { MockPaiement, PlanType, StatutPaiement } from "@/lib/mock-data";
+import { isApiConfigured } from "@/lib/api/client";
+import { fetchPaymentsPersisted } from "@/lib/payments-store";
 import Label from "@/components/form/Label";
 import Badge from "@/components/ui/badge/Badge";
 import { Modal } from "@/components/ui/modal";
@@ -23,8 +20,10 @@ import { formatXaf } from "@/lib/abonnements-utils";
 import { getPlanLabel } from "@/lib/plans-store";
 import { DollarLineIcon } from "@/icons";
 
-function estMai2025(iso: string): boolean {
-  return iso.startsWith("2025-05");
+function estMoisCourant(iso: string): boolean {
+  const now = new Date();
+  const prefix = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  return iso.startsWith(prefix);
 }
 
 function dateHeureFr(iso: string): string {
@@ -43,6 +42,7 @@ const selectClass =
   "h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800";
 
 export default function PaiementsPage() {
+  const [paiements, setPaiements] = useState<MockPaiement[]>([]);
   const [filtreStatut, setFiltreStatut] = useState<
     "tous" | StatutPaiement
   >("tous");
@@ -51,26 +51,45 @@ export default function PaiementsPage() {
     null
   );
 
+  const apiMode = isApiConfigured();
+
+  const chargerPaiements = useCallback(async () => {
+    const statut =
+      apiMode && filtreStatut !== "tous" ? filtreStatut : undefined;
+    setPaiements(await fetchPaymentsPersisted(statut ? { statut } : undefined));
+  }, [apiMode, filtreStatut]);
+
+  useEffect(() => {
+    void chargerPaiements();
+  }, [chargerPaiements]);
+
   const reinitialiserFiltres = useCallback(() => {
     setFiltreStatut("tous");
     setFiltreOperateur("tous");
   }, []);
 
   const operateurs = useMemo(() => {
-    const s = new Set(mockPaiements.map((p) => p.operateur));
+    const s = new Set(paiements.map((p) => p.operateur));
     return Array.from(s).sort();
+  }, [paiements]);
+
+  const libelleMoisCourant = useMemo(() => {
+    return new Date().toLocaleDateString("fr-FR", {
+      month: "long",
+      year: "numeric",
+    });
   }, []);
 
   const resume = useMemo(() => {
-    const succesMai = mockPaiements.filter(
-      (p) => p.statut === "SUCCES" && estMai2025(p.createdAt)
+    const succesMois = paiements.filter(
+      (p) => p.statut === "SUCCES" && estMoisCourant(p.createdAt)
     );
-    const totalEncaisse = succesMai.reduce((acc, p) => acc + p.montant, 0);
-    const enAttente = mockPaiements.filter(
+    const totalEncaisse = succesMois.reduce((acc, p) => acc + p.montant, 0);
+    const enAttente = paiements.filter(
       (p) => p.statut === "EN_ATTENTE"
     ).length;
-    const echec = mockPaiements.filter((p) => p.statut === "ECHEC").length;
-    const succesTous = mockPaiements.filter((p) => p.statut === "SUCCES");
+    const echec = paiements.filter((p) => p.statut === "ECHEC").length;
+    const succesTous = paiements.filter((p) => p.statut === "SUCCES");
     const moyenne =
       succesTous.length > 0
         ? Math.round(
@@ -78,17 +97,17 @@ export default function PaiementsPage() {
           )
         : 0;
     return { totalEncaisse, enAttente, echec, moyenne };
-  }, []);
+  }, [paiements]);
 
   const listeFiltree = useMemo(() => {
-    return mockPaiements.filter((p) => {
+    return paiements.filter((p) => {
       const okStat =
-        filtreStatut === "tous" || p.statut === filtreStatut;
+        apiMode || filtreStatut === "tous" || p.statut === filtreStatut;
       const okOp =
         filtreOperateur === "tous" || p.operateur === filtreOperateur;
       return okStat && okOp;
     });
-  }, [filtreStatut, filtreOperateur]);
+  }, [paiements, filtreStatut, filtreOperateur, apiMode]);
 
   return (
     <div className="space-y-8">
@@ -109,13 +128,13 @@ export default function PaiementsPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 md:gap-6">
           <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
             <span className="text-sm text-gray-500 dark:text-gray-400">
-              Total encaissé ce mois (mai 2025)
+              Total encaissé ce mois ({libelleMoisCourant})
             </span>
             <p className="mt-2 text-title-sm font-bold text-gray-800 dark:text-white/90">
               {formatXaf(resume.totalEncaisse)}
             </p>
             <p className="mt-2 text-theme-xs text-gray-500 dark:text-gray-400">
-              Somme des paiements réussis en mai 2025
+              Somme des paiements réussis sur le mois en cours
             </p>
           </div>
           <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">

@@ -4,11 +4,41 @@
   type RoleUser,
   type StatutUser,
 } from "@/lib/mock-data";
+import {
+  mapAdminUserDetailToMockUser,
+  mapAdminUserToMockUser,
+} from "@/lib/api/adapters";
+import {
+  buildAdminCreateBody,
+  buildBanUserBody,
+  validateAdminCreateBody,
+} from "@/lib/admin/validators";
+import type {
+  AdminCreateAdminResponse,
+  AdminUserDetailResponse,
+  AdminUsersListResponse,
+  AdminUserStatutResponse,
+} from "@/lib/api/admin-types";
+import { isAdminListApiReady, useDemoDataOnly } from "@/lib/api/admin-list-fetch";
+import { apiRequest, isApiConfigured } from "@/lib/api/client";
+import { messageFromApiError, SESSION_REQUIRED_MESSAGE } from "@/lib/api/errors";
+import { buildAdminUsersQuery } from "@/lib/admin/validators";
+import {
+  unwrapListData,
+  unwrapPaginationMeta,
+  type PaginationMeta,
+} from "@/lib/api/pagination";
+import { ADMIN_ROUTES } from "@/lib/api/routes";
 import { isSoftDeleted, softDeleteTimestamp } from "@/lib/soft-delete";
-import { mapAdminUserToMockUser } from "@/lib/api/adapters";
-import { apiRequest } from "@/lib/api/client";
 
 const USERS_KEY = "bibliotech_users";
+const USERS_PAGE_LIMIT = 20;
+
+let apiCache: MockUtilisateur[] | null = null;
+
+export function resetUsersListCache(): void {
+  apiCache = null;
+}
 
 function isBrowser(): boolean {
   return typeof window !== "undefined";
@@ -31,30 +61,40 @@ function writeUsers(users: MockUtilisateur[]): void {
   localStorage.setItem(USERS_KEY, JSON.stringify(users));
 }
 
+function setCache(users: MockUtilisateur[]): void {
+  apiCache = users;
+  writeUsers(users);
+}
+
 export function ensureUsers(): MockUtilisateur[] {
+  if (!useDemoDataOnly()) {
+    return apiCache ?? readUsers();
+  }
+  if (apiCache?.length) return apiCache;
   let users = readUsers();
   if (users.length === 0) {
-    users = mockUtilisateurs.map((u) => ({ ...u }));
+    users = mockUtilisateurs.map((u) => ({ ...u, deletedAt: u.deletedAt ?? null }));
     writeUsers(users);
   }
   return users;
 }
 
 export function getAllUsers(includeDeleted = false): MockUtilisateur[] {
-  const users = ensureUsers().map((u) => ({
+  const raw = useDemoDataOnly()
+    ? (apiCache ?? ensureUsers())
+    : (apiCache ?? readUsers());
+  const list = raw.map((u) => ({
     ...u,
     deletedAt: u.deletedAt ?? null,
   }));
-  return includeDeleted
-    ? users
-    : users.filter((u) => !isSoftDeleted(u.deletedAt));
+  return includeDeleted ? list : list.filter((u) => !isSoftDeleted(u.deletedAt));
 }
 
 export function getUserById(id: string): MockUtilisateur | null {
   return getAllUsers(true).find((u) => u.id === id) ?? null;
 }
 
-export function createUser(input: {
+function createUserLocal(input: {
   nom: string;
   prenom: string;
   email: string;
@@ -86,11 +126,11 @@ export function createUser(input: {
     abonnementActif: input.abonnementActif ?? false,
     deletedAt: null,
   };
-  writeUsers([...users, user]);
+  setCache([...users, user]);
   return { ok: true, user };
 }
 
-export function updateUser(
+function updateUserLocal(
   id: string,
   patch: Partial<
     Pick<
@@ -133,29 +173,11 @@ export function updateUser(
   if (!updated) {
     return { ok: false, error: "Mise à jour impossible." };
   }
-  writeUsers(next);
+  setCache(next);
   return { ok: true, user: updated };
 }
 
-export function setUserStatut(
-  id: string,
-  statut: StatutUser
-): { ok: true; user: MockUtilisateur } | { ok: false; error: string } {
-  return updateUser(id, { statut });
-}
-
-export function toggleUserBan(
-  id: string
-): { ok: true; user: MockUtilisateur } | { ok: false; error: string } {
-  const user = getUserById(id);
-  if (!user) {
-    return { ok: false, error: "Utilisateur introuvable." };
-  }
-  const next: StatutUser = user.statut === "ACTIF" ? "BANNI" : "ACTIF";
-  return updateUser(id, { statut: next });
-}
-
-export function deleteUser(
+function deleteUserLocal(
   id: string
 ): { ok: true } | { ok: false; error: string } {
   const users = ensureUsers();
@@ -165,37 +187,178 @@ export function deleteUser(
   const next = users.map((u) =>
     u.id === id ? { ...u, deletedAt: softDeleteTimestamp() } : u
   );
-  writeUsers(next);
+  setCache(next);
   return { ok: true };
 }
 
-type AdminUsersListResponse = {
-  items: Array<{
-    id: string;
-    email: string;
-    role: "ADMIN" | "USER";
-    statut: "ACTIF" | "BANNI";
-    date_inscription: string;
-    personne: { nom: string; prenom: string; points: number };
-    abonnement_actif: unknown | null;
-  }>;
+export type FetchUsersOptions = {
+  statut?: StatutUser | "PENDING";
+  role?: RoleUser;
+  q?: string;
+  page?: number;
+  limit?: number;
 };
 
-export async function fetchUsers(): Promise<MockUtilisateur[]> {
-  try {
-    const payload = await apiRequest<AdminUsersListResponse>("/admin/users");
-    if (!Array.isArray(payload?.items)) {
-      return getAllUsers();
-    }
-    const mapped = payload.items.map(mapAdminUserToMockUser);
-    if (mapped.length > 0) {
-      writeUsers(mapped);
-      return mapped;
-    }
-    return getAllUsers();
-  } catch {
-    return getAllUsers();
+export type FetchUsersResult = {
+  users: MockUtilisateur[];
+  meta: PaginationMeta | null;
+};
+
+/**
+ * Liste admin — GET /admin/users ({ data, meta }).
+ * Filtres : statut, role (USER|ADMIN), q. Tous statuts par défaut.
+ */
+export async function fetchUsersPersisted(
+  options?: FetchUsersOptions
+): Promise<FetchUsersResult> {
+  if (!isApiConfigured()) {
+    return { users: getAllUsers(), meta: null };
   }
+  if (!isAdminListApiReady()) {
+    return { users: [], meta: null };
+  }
+
+  try {
+    const params = buildAdminUsersQuery({
+      statut: options?.statut,
+      role: options?.role,
+      q: options?.q,
+      page: options?.page ?? 1,
+      limit: options?.limit ?? USERS_PAGE_LIMIT,
+    });
+
+    const payload = await apiRequest<AdminUsersListResponse>(
+      `${ADMIN_ROUTES.users.list}?${params.toString()}`
+    );
+    const rows = unwrapListData(payload);
+    const mapped = rows.map(mapAdminUserToMockUser);
+    setCache(mapped);
+    return {
+      users: mapped,
+      meta: unwrapPaginationMeta(payload),
+    };
+  } catch {
+    return { users: [], meta: null };
+  }
+}
+
+/** Alias historique */
+export const fetchUsers = fetchUsersPersisted;
+
+export async function fetchUserDetailPersisted(
+  id: string
+): Promise<
+  | { ok: true; user: MockUtilisateur; detail: AdminUserDetailResponse }
+  | { ok: false; error: string }
+> {
+  if (!isApiConfigured()) {
+    const user = getUserById(id);
+    if (!user) return { ok: false, error: "Utilisateur introuvable." };
+    return {
+      ok: true,
+      user,
+      detail: {
+        auth: {
+          id: user.id,
+          email: user.email,
+          role: user.role,
+          statut: user.statut,
+          date_inscription: user.dateInscription,
+        },
+        personne: {
+          nom: user.nom,
+          prenom: user.prenom,
+          ecole: user.ecole,
+          niveau: user.niveau,
+          points: user.points,
+        },
+        abonnements: [],
+        paiements: [],
+      },
+    };
+  }
+
+  if (!isAdminListApiReady()) {
+    return { ok: false, error: SESSION_REQUIRED_MESSAGE };
+  }
+
+  try {
+    const detail = await apiRequest<AdminUserDetailResponse>(
+      ADMIN_ROUTES.users.byId(id)
+    );
+    const user = mapAdminUserDetailToMockUser(detail);
+    const next = getAllUsers().map((u) => (u.id === id ? user : u));
+    setCache(next.length ? next : [user]);
+    return { ok: true, user, detail };
+  } catch (err) {
+    return {
+      ok: false,
+      error: messageFromApiError(err, "Chargement du profil impossible."),
+    };
+  }
+}
+
+/**
+ * Création admin — POST /admin/users.
+ * role=ADMIN, statut=ACTIF, email_verified=true (côté serveur).
+ */
+export async function createAdminPersisted(input: {
+  nom: string;
+  prenom: string;
+  email: string;
+  password: string;
+}): Promise<{ ok: true; user: MockUtilisateur } | { ok: false; error: string }> {
+  const apiMode = isApiConfigured();
+  const validationError = validateAdminCreateBody(input, apiMode);
+  if (validationError) {
+    return { ok: false, error: validationError };
+  }
+
+  if (apiMode) {
+    if (!isAdminListApiReady()) {
+      return { ok: false, error: SESSION_REQUIRED_MESSAGE };
+    }
+
+    try {
+      const created = await apiRequest<AdminCreateAdminResponse>(
+        ADMIN_ROUTES.users.create,
+        {
+          method: "POST",
+          body: JSON.stringify(buildAdminCreateBody(input)),
+        }
+      );
+
+      await fetchUsersPersisted({ role: "ADMIN", limit: 100 });
+
+      const user: MockUtilisateur = {
+        id: created.id,
+        nom: input.nom.trim(),
+        prenom: input.prenom.trim(),
+        email: created.email,
+        ecole: "—",
+        niveau: "—",
+        role: created.role === "ADMIN" ? "ADMIN" : "USER",
+        statut: created.statut,
+        points: 0,
+        dateInscription: new Date().toISOString().slice(0, 10),
+        abonnementActif: false,
+        deletedAt: null,
+      };
+      return { ok: true, user };
+    } catch (err) {
+      return {
+        ok: false,
+        error: messageFromApiError(err, "Création administrateur impossible."),
+      };
+    }
+  }
+
+  return createUserLocal({
+    ...input,
+    role: "ADMIN",
+    ecole: "—",
+    niveau: "—",
+  });
 }
 
 export async function createUserPersisted(input: {
@@ -208,44 +371,135 @@ export async function createUserPersisted(input: {
   points?: number;
   abonnementActif?: boolean;
 }): Promise<{ ok: true; user: MockUtilisateur } | { ok: false; error: string }> {
-  try {
-    await apiRequest("/admin/users", {
-      method: "POST",
-      body: JSON.stringify({
-        email: input.email.trim().toLowerCase(),
-        password: "Temporaire123!",
-        nom: input.nom.trim(),
-        prenom: input.prenom.trim(),
-      }),
-    });
-  } catch {
-    // fallback local
+  if (isApiConfigured() && input.role === "ADMIN") {
+    return {
+      ok: false,
+      error:
+        "Création admin : utilisez la page Administrateurs avec mot de passe.",
+    };
   }
-  return createUser(input);
+  if (isApiConfigured()) {
+    return {
+      ok: false,
+      error:
+        "La création de comptes utilisateurs se fait depuis l'application mobile, pas depuis l'administration.",
+    };
+  }
+  return createUserLocal(input);
+}
+
+/**
+ * Bannir — PATCH /admin/users/{id}/ban.
+ * Corps optionnel `{ raison }` (journalisée, non persistée). Réponse `{ id, statut }`.
+ */
+export async function banUserPersisted(
+  id: string,
+  raison?: string
+): Promise<{ ok: true; user: MockUtilisateur } | { ok: false; error: string }> {
+  if (isApiConfigured()) {
+    if (!isAdminListApiReady()) {
+      return { ok: false, error: SESSION_REQUIRED_MESSAGE };
+    }
+
+    try {
+      const res = await apiRequest<AdminUserStatutResponse>(
+        ADMIN_ROUTES.users.ban(id),
+        {
+          method: "PATCH",
+          body: JSON.stringify(buildBanUserBody(raison)),
+        }
+      );
+
+      const refreshed = await fetchUserDetailPersisted(id);
+      if (refreshed.ok) {
+        return { ok: true, user: refreshed.user };
+      }
+
+      const cached = getUserById(id);
+      if (cached) {
+        return {
+          ok: true,
+          user: { ...cached, statut: res.statut === "BANNI" ? "BANNI" : cached.statut },
+        };
+      }
+
+      return { ok: false, error: "Utilisateur introuvable." };
+    } catch (err) {
+      return {
+        ok: false,
+        error: messageFromApiError(err, "Bannissement impossible."),
+      };
+    }
+  }
+
+  const user = getUserById(id);
+  if (!user) return { ok: false, error: "Utilisateur introuvable." };
+  return updateUserLocal(id, { statut: "BANNI" });
+}
+
+/**
+ * Débannir — PATCH /admin/users/{id}/unban.
+ * Sans corps. Réponse `{ id, statut }` avec `statut` → ACTIF.
+ */
+export async function unbanUserPersisted(
+  id: string
+): Promise<{ ok: true; user: MockUtilisateur } | { ok: false; error: string }> {
+  if (isApiConfigured()) {
+    if (!isAdminListApiReady()) {
+      return { ok: false, error: SESSION_REQUIRED_MESSAGE };
+    }
+
+    try {
+      const res = await apiRequest<AdminUserStatutResponse>(
+        ADMIN_ROUTES.users.unban(id),
+        { method: "PATCH" }
+      );
+
+      const refreshed = await fetchUserDetailPersisted(id);
+      if (refreshed.ok) {
+        return { ok: true, user: refreshed.user };
+      }
+
+      const cached = getUserById(id);
+      if (cached) {
+        return {
+          ok: true,
+          user: { ...cached, statut: res.statut === "ACTIF" ? "ACTIF" : cached.statut },
+        };
+      }
+
+      return { ok: false, error: "Utilisateur introuvable." };
+    } catch (err) {
+      return {
+        ok: false,
+        error: messageFromApiError(err, "Débannissement impossible."),
+      };
+    }
+  }
+
+  const user = getUserById(id);
+  if (!user) return { ok: false, error: "Utilisateur introuvable." };
+  return updateUserLocal(id, { statut: "ACTIF" });
 }
 
 export async function toggleUserBanPersisted(
-  id: string
+  id: string,
+  raison?: string,
+  currentStatut?: StatutUser | "PENDING"
 ): Promise<{ ok: true; user: MockUtilisateur } | { ok: false; error: string }> {
-  const user = getUserById(id);
-  if (!user) {
-    return { ok: false, error: "Utilisateur introuvable." };
-  }
-  const local = toggleUserBan(id);
-  if (!local.ok) return local;
-  try {
-    if (local.user.statut === "BANNI") {
-      await apiRequest(`/admin/users/${id}/ban`, {
-        method: "PATCH",
-        body: JSON.stringify({ reason: "Modération admin" }),
-      });
-    } else {
-      await apiRequest(`/admin/users/${id}/unban`, { method: "PATCH" });
+  if (isApiConfigured()) {
+    if (currentStatut === "BANNI") {
+      return unbanUserPersisted(id);
     }
-  } catch {
-    // fallback local
+    return banUserPersisted(id, raison);
   }
-  return local;
+
+  const user = getUserById(id);
+  if (!user) return { ok: false, error: "Utilisateur introuvable." };
+  if (user.statut === "BANNI") {
+    return unbanUserPersisted(id);
+  }
+  return banUserPersisted(id, raison);
 }
 
 export async function updateUserPersisted(
@@ -265,11 +519,24 @@ export async function updateUserPersisted(
     >
   >
 ): Promise<{ ok: true; user: MockUtilisateur } | { ok: false; error: string }> {
-  return updateUser(id, patch);
+  if (isApiConfigured()) {
+    return {
+      ok: false,
+      error:
+        "Modification profil non exposée par l’API (ban / unban uniquement).",
+    };
+  }
+  return updateUserLocal(id, patch);
 }
 
 export async function deleteUserPersisted(
   id: string
 ): Promise<{ ok: true } | { ok: false; error: string }> {
-  return deleteUser(id);
+  if (isApiConfigured()) {
+    return {
+      ok: false,
+      error: "Suppression compte non disponible via l’API admin.",
+    };
+  }
+  return deleteUserLocal(id);
 }

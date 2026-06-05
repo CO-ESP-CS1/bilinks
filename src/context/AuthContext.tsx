@@ -8,6 +8,14 @@ import React, {
   useMemo,
   useState,
 } from "react";
+import { isApiConfigured } from "@/lib/api/client";
+import {
+  API_SESSION_EXPIRED_EVENT,
+  hasApiSession,
+  loginAdminViaApi,
+  logoutApiSession,
+} from "@/lib/api/session";
+import { createAdminPersisted } from "@/lib/users-store";
 import {
   type AdminAccount,
   type StatutAdmin,
@@ -31,7 +39,9 @@ type AuthContextValue = {
   login: (
     email: string,
     password: string
-  ) => ReturnType<typeof authLogin>;
+  ) => Promise<
+    { ok: true; admin: AdminAccount } | { ok: false; error: string }
+  >;
   logout: () => void;
   refresh: () => void;
   updateProfile: (
@@ -48,7 +58,9 @@ type AuthContextValue = {
     password: string;
     prenom: string;
     nom: string;
-  }) => ReturnType<typeof createAdmin>;
+  }) => Promise<
+    { ok: true; admin: AdminAccount } | { ok: false; error: string }
+  >;
   editAdmin: (
     id: string,
     patch: Parameters<typeof updateAdminAccount>[1]
@@ -70,6 +82,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(() => {
     ensureDefaultAdmins();
     setAdmins(getAllAdmins());
+
+    if (isApiConfigured()) {
+      const current = getCurrentAdmin();
+      if (current && !hasApiSession()) {
+        authLogout();
+        logoutApiSession();
+        setAdmin(null);
+        setIsReady(true);
+        return;
+      }
+    }
+
     setAdmin(getCurrentAdmin());
     setIsReady(true);
   }, []);
@@ -78,20 +102,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refresh();
   }, [refresh]);
 
-  const login = useCallback(
-    (email: string, password: string) => {
-      const result = authLogin(email, password);
+  useEffect(() => {
+    const onExpired = () => {
+      authLogout();
+      logoutApiSession();
+      setAdmin(null);
+    };
+    window.addEventListener(API_SESSION_EXPIRED_EVENT, onExpired);
+    return () => window.removeEventListener(API_SESSION_EXPIRED_EVENT, onExpired);
+  }, []);
+
+  const login = useCallback(async (email: string, password: string) => {
+    if (isApiConfigured()) {
+      const result = await loginAdminViaApi(email, password);
       if (result.ok) {
         setAdmin(result.admin);
         setAdmins(getAllAdmins());
       }
       return result;
-    },
-    []
-  );
+    }
+
+    const result = authLogin(email, password);
+    if (result.ok) {
+      setAdmin(result.admin);
+      setAdmins(getAllAdmins());
+    }
+    return result;
+  }, []);
 
   const logout = useCallback(() => {
     authLogout();
+    logoutApiSession();
     setAdmin(null);
   }, []);
 
@@ -119,14 +160,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [admin]
   );
 
-  const addAdmin = useCallback((input: Parameters<AuthContextValue["addAdmin"]>[0]) => {
-    const result = createAdmin(input);
-    if (result.ok) {
-      setAdmins(getAllAdmins());
-      setAdmin(getCurrentAdmin());
-    }
-    return result;
-  }, []);
+  const addAdmin = useCallback(
+    async (input: Parameters<AuthContextValue["addAdmin"]>[0]) => {
+      if (isApiConfigured() && hasApiSession()) {
+        const apiResult = await createAdminPersisted(input);
+        if (!apiResult.ok) return apiResult;
+        return {
+          ok: true as const,
+          admin: {
+            id: apiResult.user.id,
+            email: apiResult.user.email,
+            password: "",
+            prenom: apiResult.user.prenom,
+            nom: apiResult.user.nom,
+            fonction: "Administrateur",
+            localisation: "Brazzaville, Congo",
+            avatarUrl: "/images/logo/logo-icon.svg",
+            isSuperAdmin: false,
+            statut: "ACTIF" as StatutAdmin,
+            createdAt: new Date().toISOString(),
+            deletedAt: null,
+          } satisfies AdminAccount,
+        };
+      }
+
+      const result = createAdmin(input);
+      if (result.ok) {
+        setAdmins(getAllAdmins());
+        setAdmin(getCurrentAdmin());
+      }
+      return result;
+    },
+    []
+  );
 
   const editAdmin = useCallback(
     (id: string, patch: Parameters<typeof updateAdminAccount>[1]) => {

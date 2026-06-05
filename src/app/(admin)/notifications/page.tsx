@@ -25,6 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { isSoftDeleted, softDeleteTimestamp } from "@/lib/soft-delete";
+import { isApiConfigured } from "@/lib/api/client";
 import { BellIcon, PencilIcon, TrashBinIcon } from "@/icons";
 
 type FiltreStatut = "tous" | StatutNotification;
@@ -255,8 +256,11 @@ function NotificationForm({
 }
 
 export default function NotificationsPage() {
+  const apiMode = isApiConfigured();
   const [notifications, setNotifications] = useState<MockNotification[]>(() =>
-    mockNotifications.map((n) => ({ ...n, deletedAt: n.deletedAt ?? null }))
+    apiMode
+      ? []
+      : mockNotifications.map((n) => ({ ...n, deletedAt: n.deletedAt ?? null }))
   );
   const [filtreStatut, setFiltreStatut] = useState<FiltreStatut>("tous");
   const [filtreCible, setFiltreCible] = useState<FiltreCible>("tous");
@@ -321,6 +325,12 @@ export default function NotificationsPage() {
   return (
     <div className="space-y-6">
       <Breadcrumb items={adminCrumb("Notifications")} />
+      {apiMode && (
+        <div className="rounded-xl border border-warning-500/30 bg-warning-50 px-4 py-3 text-sm text-warning-800 dark:border-warning-500/20 dark:bg-warning-500/10 dark:text-warning-300">
+          La gestion des notifications push n&apos;est pas encore disponible
+          depuis cette interface.
+        </div>
+      )}
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-4">
           <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-500/10 text-brand-500 dark:bg-brand-500/15">
@@ -336,6 +346,7 @@ export default function NotificationsPage() {
           </div>
         </div>
         <Button
+          disabled={apiMode}
           onClick={() => {
             setEdition(null);
             setModalMode("creer");
@@ -407,8 +418,12 @@ export default function NotificationsPage() {
       {listeFiltree.length === 0 ? (
         <EmptyState
           icon={<BellIcon className="size-7" />}
-          message="Aucune notification pour ce filtre."
-          onReset={reinitialiserFiltres}
+          message={
+            apiMode
+              ? "Aucune notification disponible pour le moment."
+              : "Aucune notification pour ce filtre."
+          }
+          onReset={apiMode ? undefined : reinitialiserFiltres}
         />
       ) : (
         <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
@@ -478,15 +493,17 @@ export default function NotificationsPage() {
                           <button
                             type="button"
                             title="Modifier"
+                            disabled={apiMode}
                             onClick={() => {
+                              if (apiMode) return;
                               setEdition(n);
                               setModalMode("modifier");
                             }}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg ring-1 ring-gray-200 hover:text-brand-500 dark:ring-gray-700"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg ring-1 ring-gray-200 hover:text-brand-500 disabled:cursor-not-allowed disabled:opacity-40 dark:ring-gray-700"
                           >
                             <PencilIcon className="size-4" />
                           </button>
-                          {n.statut === "BROUILLON" && (
+                          {n.statut === "BROUILLON" && !apiMode && (
                             <button
                               type="button"
                               onClick={() => envoyerMaintenant(n)}
@@ -495,7 +512,7 @@ export default function NotificationsPage() {
                               Envoyer
                             </button>
                           )}
-                          {n.statut === "PROGRAMMEE" && (
+                          {n.statut === "PROGRAMMEE" && !apiMode && (
                             <>
                               <button
                                 type="button"
@@ -516,8 +533,12 @@ export default function NotificationsPage() {
                           <button
                             type="button"
                             title="Supprimer"
-                            onClick={() => setSupprimerCible(n)}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg ring-1 ring-gray-200 hover:text-error-500 dark:ring-gray-700"
+                            disabled={apiMode}
+                            onClick={() => {
+                              if (apiMode) return;
+                              setSupprimerCible(n);
+                            }}
+                            className="flex h-8 w-8 items-center justify-center rounded-lg ring-1 ring-gray-200 hover:text-error-500 disabled:cursor-not-allowed disabled:opacity-40 dark:ring-gray-700"
                           >
                             <TrashBinIcon className="size-4" />
                           </button>

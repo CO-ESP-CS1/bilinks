@@ -6,6 +6,7 @@ import AppHeader from "@/layout/AppHeader";
 import AppSidebar from "@/layout/AppSidebar";
 import Backdrop from "@/layout/Backdrop";
 import { AdminPageTransition } from "@/components/admin/AdminPageTransition";
+import { ApiSessionBanner } from "@/components/admin/ApiSessionBanner";
 import React from "react";
 
 export default function AdminLayoutClient({
@@ -31,6 +32,7 @@ export default function AdminLayoutClient({
         >
           <AppHeader />
           <div className="mx-auto max-w-(--breakpoint-2xl) p-4 md:p-6">
+            <ApiSessionBanner />
             <AdminPageTransition>{children}</AdminPageTransition>
           </div>
         </div>
