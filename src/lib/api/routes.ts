@@ -68,6 +68,9 @@ export const ADMIN_ROUTES = {
     books: "/admin/stats/books",
     searchTerms: "/admin/stats/search-terms",
   },
+  notifications: {
+    create: "/admin/notifications",
+  },
 } as const;
 
 export const AUTH_ROUTES = {

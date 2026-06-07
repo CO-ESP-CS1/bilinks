@@ -495,6 +495,41 @@ export type AdminStatsSearchTermsApi = {
   top_sans_resultats: Array<{ terme: string; nb_recherches: number }>;
 };
 
+// --- Notifications in-app ---
+export const ADMIN_NOTIFICATION_TYPES = [
+  "ANNONCE",
+  "PROMOTION",
+  "MAINTENANCE",
+  "ACTUALITE",
+  "ALERTE",
+] as const;
+
+export type AdminNotificationType = (typeof ADMIN_NOTIFICATION_TYPES)[number];
+
+/** POST /admin/notifications */
+export type AdminCreateNotificationBody = {
+  auth_id?: string;
+  titre: string;
+  contenu?: string;
+  type: AdminNotificationType;
+};
+
+export type AdminCreateNotificationResponseUser = {
+  cible: "UTILISATEUR";
+  auth_id: string;
+  created: number;
+  notification_id: string;
+};
+
+export type AdminCreateNotificationResponseAll = {
+  cible: "TOUS";
+  created: number;
+};
+
+export type AdminCreateNotificationResponse =
+  | AdminCreateNotificationResponseUser
+  | AdminCreateNotificationResponseAll;
+
 // --- Erreur NestJS ---
 export type NestJsErrorPayload = {
   statusCode: number;
