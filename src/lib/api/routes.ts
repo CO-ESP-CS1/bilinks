@@ -69,7 +69,9 @@ export const ADMIN_ROUTES = {
     searchTerms: "/admin/stats/search-terms",
   },
   notifications: {
+    list: "/admin/notifications",
     create: "/admin/notifications",
+    delete: (id: string) => `/admin/notifications/${id}`,
   },
 } as const;
 

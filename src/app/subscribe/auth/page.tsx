@@ -32,25 +32,17 @@ export default function SubscribeAuthPage() {
   const [toast, setToast] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const loginForm = useForm<z.infer<typeof loginSchema>>({
+  const form = useForm<z.infer<typeof loginSchema>>({
     resolver: zodResolver(loginSchema),
   });
 
+  /* ── Guard : plan requis, session existante ── */
   useEffect(() => {
     if (!isHydrated) return;
-    if (!planId) {
-      router.replace("/subscribe");
-      return;
-    }
+    if (!planId) { router.replace("/subscribe"); return; }
     const storedToken = subscribeStorage.getToken();
-    if (!storedToken) {
-      setChecking(false);
-      return;
-    }
-    if (SUBSCRIBE_MOCK) {
-      router.replace("/subscribe/payment");
-      return;
-    }
+    if (!storedToken) { setChecking(false); return; }
+    if (SUBSCRIBE_MOCK) { router.replace("/subscribe/payment"); return; }
     fetchSubscribeMe(storedToken)
       .then(() => router.replace("/subscribe/payment"))
       .catch(() => setChecking(false));
@@ -58,46 +50,48 @@ export default function SubscribeAuthPage() {
 
   useEffect(() => {
     if (!toast) return;
-    const t = setTimeout(() => setToast(null), 4000);
+    const t = setTimeout(() => setToast(null), 4500);
     return () => clearTimeout(t);
   }, [toast]);
 
-  const onLogin = loginForm.handleSubmit(async (values) => {
+  const onLogin = form.handleSubmit(async ({ email, password }) => {
     setLoading(true);
     try {
-      const session = await loginSubscribeUser(values.email, values.password);
+      const session = await loginSubscribeUser(email, password);
       setAuth(session);
       router.push("/subscribe/payment");
     } catch (err) {
-      setToast(err instanceof Error ? err.message : "Connexion impossible.");
+      setToast(err instanceof Error ? err.message : "Identifiants incorrects.");
     } finally {
       setLoading(false);
     }
   });
 
-  if (!isHydrated || checking) {
-    return <SubscribePageSkeleton />;
-  }
+  if (!isHydrated || checking) return <SubscribePageSkeleton />;
 
   return (
     <div className="pb-8">
       <StepIndicator current={2} />
-      <div className="px-6 pt-8">
-        <SubscribeLogo />
-        <h1 className="mt-6 text-center text-2xl font-bold text-zinc-900">Bon retour</h1>
-        <p className="mt-1 text-center text-sm text-zinc-500">
-          Connectez-vous avec votre compte BI LINKS pour continuer
+
+      <div className="mx-auto max-w-lg px-4 pt-6 sm:px-0 sm:pt-8">
+        <div className="md:hidden"><SubscribeLogo /></div>
+
+        <h1 className="mt-6 text-center text-2xl font-bold text-zinc-900 sm:text-3xl">
+          Connectez-vous
+        </h1>
+        <p className="mt-2 text-center text-sm text-zinc-500">
+          Utilisez votre compte BI LINKS pour continuer
         </p>
 
         <form
           onSubmit={onLogin}
-          className="mt-6 rounded-3xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.04),0_4px_16px_rgba(0,0,0,0.06)]"
+          className="mt-6 rounded-2xl bg-white p-6 shadow-[0_1px_3px_rgba(0,0,0,0.05),0_4px_16px_rgba(0,0,0,0.07)] sm:p-8"
         >
-          <Field label="E-mail" error={loginForm.formState.errors.email?.message}>
+          <Field label="Adresse e-mail" error={form.formState.errors.email?.message}>
             <div className="relative">
               <Mail className="pointer-events-none absolute left-4 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-zinc-400" />
               <input
-                {...loginForm.register("email")}
+                {...form.register("email")}
                 type="email"
                 autoComplete="email"
                 inputMode="email"
@@ -106,11 +100,12 @@ export default function SubscribeAuthPage() {
               />
             </div>
           </Field>
-          <Field label="Mot de passe" error={loginForm.formState.errors.password?.message}>
+
+          <Field label="Mot de passe" error={form.formState.errors.password?.message}>
             <div className="relative">
               <Lock className="pointer-events-none absolute left-4 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-zinc-400" />
               <input
-                {...loginForm.register("password")}
+                {...form.register("password")}
                 type={showPassword ? "text" : "password"}
                 autoComplete="current-password"
                 className="input-subscribe input-with-icon-left input-with-icon-right"
@@ -118,23 +113,21 @@ export default function SubscribeAuthPage() {
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
-                className="absolute right-4 top-1/2 z-10 -translate-y-1/2 text-zinc-400"
-                aria-label={showPassword ? "Masquer le mot de passe" : "Afficher le mot de passe"}
+                className="absolute right-4 top-1/2 z-10 -translate-y-1/2 text-zinc-400 hover:text-zinc-600"
+                aria-label={showPassword ? "Masquer" : "Afficher"}
               >
                 {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               </button>
             </div>
           </Field>
-          <p className="mt-1 text-right text-xs font-medium text-violet-600">
-            Mot de passe oublié ?
-          </p>
-          <PrimaryButton type="submit" className="mt-4" loading={loading} loadingText="Connexion…">
+
+          <PrimaryButton type="submit" className="mt-2" loading={loading} loadingText="Connexion…">
             Se connecter
           </PrimaryButton>
         </form>
 
         <p className="mt-4 text-center text-xs text-zinc-400">
-          Vous devez déjà posséder un compte BI LINKS pour vous abonner.
+          Vous devez posséder un compte BI LINKS pour vous abonner.
         </p>
       </div>
 
@@ -164,18 +157,12 @@ export default function SubscribeAuthPage() {
           outline: none;
           transition: border-color 0.15s ease, box-shadow 0.15s ease;
         }
-        .input-subscribe.input-with-icon-left {
-          padding-left: 2.75rem;
-        }
-        .input-subscribe.input-with-icon-right {
-          padding-right: 2.75rem;
-        }
-        .input-subscribe::placeholder {
-          color: #a1a1aa;
-        }
+        .input-subscribe.input-with-icon-left  { padding-left: 2.75rem; }
+        .input-subscribe.input-with-icon-right { padding-right: 2.75rem; }
+        .input-subscribe::placeholder { color: #a1a1aa; }
         .input-subscribe:focus {
-          border-color: #7c3aed;
-          box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.12);
+          border-color: #004AC6;
+          box-shadow: 0 0 0 3px rgba(0, 74, 198, 0.12);
         }
       `}</style>
     </div>

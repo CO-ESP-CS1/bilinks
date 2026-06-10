@@ -1023,6 +1023,15 @@ span.flatpickr-weekday,
   }
 }
 
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
 @utility animate-slide-down {
   animation: slide-down 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
@@ -1071,3 +1080,4 @@ span.flatpickr-weekday,
     transform: none !important;
   }
 }
+

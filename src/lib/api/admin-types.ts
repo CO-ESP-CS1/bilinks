@@ -530,6 +530,23 @@ export type AdminCreateNotificationResponse =
   | AdminCreateNotificationResponseUser
   | AdminCreateNotificationResponseAll;
 
+/** GET /admin/notifications — un élément de l'historique groupé par envoi */
+export type AdminNotificationGroupItem = {
+  id: string;
+  titre: string;
+  contenu: string | null;
+  type: AdminNotificationType;
+  cible: "TOUS" | "UTILISATEUR";
+  envoyeLe: string;
+  total_destinataires: number;
+  nb_lus: number;
+};
+
+export type AdminNotificationsListResponse = {
+  data: AdminNotificationGroupItem[];
+  meta: PaginationMeta;
+};
+
 // --- Erreur NestJS ---
 export type NestJsErrorPayload = {
   statusCode: number;

@@ -2,6 +2,8 @@ import type {
   AdminCreateNotificationBody,
   AdminCreateNotificationResponse,
   AdminNotificationType,
+  AdminNotificationGroupItem,
+  AdminNotificationsListResponse,
 } from "@/lib/api/admin-types";
 import { ADMIN_NOTIFICATION_TYPES } from "@/lib/api/admin-types";
 import { isAdminListApiReady } from "@/lib/api/admin-list-fetch";
@@ -20,6 +22,8 @@ export type SentAdminNotification = {
   created: number;
   envoyeLe: string;
 };
+
+export type { AdminNotificationGroupItem };
 
 export function mapNotificationResponseToSent(
   input: {
@@ -56,6 +60,21 @@ export function mapNotificationResponseToSent(
   };
 }
 
+/** Récupère l'historique paginé des notifications envoyées par l'admin. */
+export async function fetchAdminNotifications(
+  query: { page?: number; limit?: number; type?: string } = {}
+): Promise<AdminNotificationsListResponse> {
+  const params = new URLSearchParams();
+  if (query.page) params.set("page", String(query.page));
+  if (query.limit) params.set("limit", String(query.limit));
+  if (query.type) params.set("type", query.type);
+  const qs = params.size ? `?${params.toString()}` : "";
+  return apiRequest<AdminNotificationsListResponse>(
+    `${ADMIN_ROUTES.notifications.list}${qs}`
+  );
+}
+
+/** Crée et envoie une notification in-app. */
 export async function createAdminNotificationPersisted(input: {
   titre: string;
   contenu?: string;
@@ -114,6 +133,24 @@ export async function createAdminNotificationPersisted(input: {
     return {
       ok: false,
       error: messageFromApiError(err, "Envoi de la notification impossible."),
+    };
+  }
+}
+
+/** Supprime toutes les notifications d'un groupe (même envoi). */
+export async function deleteAdminNotification(
+  id: string
+): Promise<{ ok: true; deleted: number } | { ok: false; error: string }> {
+  try {
+    const res = await apiRequest<{ deleted: number }>(
+      ADMIN_ROUTES.notifications.delete(id),
+      { method: "DELETE" }
+    );
+    return { ok: true, deleted: res.deleted };
+  } catch (err) {
+    return {
+      ok: false,
+      error: messageFromApiError(err, "Impossible de supprimer la notification."),
     };
   }
 }

@@ -16,13 +16,14 @@ type SubscriptionContextValue = {
   isHydrated: boolean;
   plan: SubscribePlan | null;
   planId: SubscribePlanId | null;
+  planApiId: string | null;
   token: string | null;
   userId: string | null;
   firstName: string | null;
   provider: PaymentProvider | null;
   phone: string | null;
   transactionId: string | null;
-  setPlan: (id: SubscribePlanId) => void;
+  setPlan: (id: SubscribePlanId, apiId?: string) => void;
   setAuth: (data: { token: string; userId: string; firstName: string }) => void;
   setPayment: (data: { provider: PaymentProvider; phone: string }) => void;
   setTransactionId: (id: string) => void;
@@ -34,6 +35,7 @@ const SubscriptionContext = createContext<SubscriptionContextValue | null>(null)
 function readStorageState() {
   return {
     planId: subscribeStorage.getPlanId(),
+    planApiId: subscribeStorage.getPlanApiId(),
     token: subscribeStorage.getToken(),
     userId: subscribeStorage.getUserId(),
     firstName: subscribeStorage.getFirstName(),
@@ -46,6 +48,7 @@ function readStorageState() {
 export function SubscriptionProvider({ children }: { children: React.ReactNode }) {
   const [isHydrated, setIsHydrated] = useState(false);
   const [planId, setPlanIdState] = useState<SubscribePlanId | null>(null);
+  const [planApiId, setPlanApiIdState] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [firstName, setFirstName] = useState<string | null>(null);
@@ -56,6 +59,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const hydrate = useCallback(() => {
     const stored = readStorageState();
     setPlanIdState(stored.planId);
+    setPlanApiIdState(stored.planApiId);
     setToken(stored.token);
     setUserId(stored.userId);
     setFirstName(stored.firstName);
@@ -69,9 +73,13 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     setIsHydrated(true);
   }, [hydrate]);
 
-  const setPlan = useCallback((id: SubscribePlanId) => {
+  const setPlan = useCallback((id: SubscribePlanId, apiId?: string) => {
     subscribeStorage.setPlanId(id);
     setPlanIdState(id);
+    if (apiId) {
+      subscribeStorage.setPlanApiId(apiId);
+      setPlanApiIdState(apiId);
+    }
   }, []);
 
   const setAuth = useCallback(
@@ -104,6 +112,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
       isHydrated,
       plan: getPlanById(planId),
       planId,
+      planApiId,
       token,
       userId,
       firstName,
@@ -119,6 +128,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     [
       isHydrated,
       planId,
+      planApiId,
       token,
       userId,
       firstName,

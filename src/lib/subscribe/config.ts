@@ -1,5 +1,5 @@
-/** Mode test : aucun appel API, le flux avance si les champs sont valides. */
-export const SUBSCRIBE_MOCK = true;
+/** Mode test local sans backend — activer via NEXT_PUBLIC_SUBSCRIBE_MOCK=true */
+export const SUBSCRIBE_MOCK = process.env.NEXT_PUBLIC_SUBSCRIBE_MOCK === "true";
 
 export function mockTransactionId(): string {
   return `BL-${Math.floor(10000000 + Math.random() * 90000000)}`;

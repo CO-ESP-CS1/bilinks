@@ -3,6 +3,7 @@ import type { PaymentProvider, SubscribePlanId } from "@/lib/subscribe/plans";
 const KEYS = {
   token: "bilinks_subscribe_token",
   planId: "bilinks_subscribe_plan",
+  planApiId: "bilinks_subscribe_plan_api_id",
   userId: "bilinks_subscribe_user_id",
   firstName: "bilinks_subscribe_first_name",
   provider: "bilinks_subscribe_provider",
@@ -33,6 +34,13 @@ export const subscribeStorage = {
   },
   setPlanId(id: SubscribePlanId) {
     ss()?.setItem(KEYS.planId, id);
+  },
+
+  getPlanApiId(): string | null {
+    return ss()?.getItem(KEYS.planApiId) ?? null;
+  },
+  setPlanApiId(id: string) {
+    ss()?.setItem(KEYS.planApiId, id);
   },
 
   getUserId(): string | null {

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Loader2, ShieldCheck, Smartphone } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { AccountInfoCard } from "@/components/subscribe/AccountInfoCard";
 import { PaymentMethod } from "@/components/subscribe/PaymentMethod";
 import { PaymentSummary } from "@/components/subscribe/PaymentSummary";
 import { PrimaryButton } from "@/components/subscribe/PrimaryButton";
@@ -10,7 +11,13 @@ import { StepIndicator } from "@/components/subscribe/StepIndicator";
 import { SubscribePageSkeleton } from "@/components/subscribe/SubscribePageSkeleton";
 import { isValidCongoPhone, maskPhone } from "@/components/subscribe/PhoneInput";
 import { useSubscription } from "@/context/SubscriptionContext";
-import { initiatePayment, fetchPaymentStatus, SUBSCRIBE_MOCK } from "@/lib/subscribe/api";
+import {
+  fetchSubscribeMe,
+  initiatePayment,
+  fetchPaymentStatus,
+  SUBSCRIBE_MOCK,
+  type SubscribeMeProfile,
+} from "@/lib/subscribe/api";
 import type { PaymentProvider } from "@/lib/subscribe/plans";
 import { subscribeStorage } from "@/lib/subscribe/storage";
 
@@ -18,7 +25,7 @@ type Phase = "form" | "processing" | "waiting";
 
 export default function SubscribePaymentPage() {
   const router = useRouter();
-  const { isHydrated, plan, planId, token, userId, setPayment, setTransactionId } =
+  const { isHydrated, plan, planId, planApiId, token, userId, setPayment, setTransactionId } =
     useSubscription();
   const [provider, setProvider] = useState<PaymentProvider | null>(
     subscribeStorage.getProvider()
@@ -27,6 +34,8 @@ export default function SubscribePaymentPage() {
   const [phase, setPhase] = useState<Phase>("form");
   const [countdown, setCountdown] = useState(120);
   const [error, setError] = useState<string | null>(null);
+  const [profile, setProfile] = useState<SubscribeMeProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -34,10 +43,43 @@ export default function SubscribePaymentPage() {
       router.replace("/subscribe");
       return;
     }
+    if (!SUBSCRIBE_MOCK && !planApiId) {
+      router.replace("/subscribe");
+      return;
+    }
     if (!token && !SUBSCRIBE_MOCK) {
       router.replace("/subscribe/auth");
     }
-  }, [isHydrated, planId, token, router]);
+  }, [isHydrated, planId, planApiId, token, router]);
+
+  useEffect(() => {
+    if (!isHydrated) return;
+    if (!token && !SUBSCRIBE_MOCK) return;
+
+    let cancelled = false;
+    setProfileLoading(true);
+    fetchSubscribeMe(token ?? undefined)
+      .then((data) => {
+        if (!cancelled) setProfile(data);
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          const msg = err instanceof Error ? err.message : "";
+          if (msg.includes("session") || msg.includes("connexion")) {
+            router.replace("/subscribe/auth");
+          } else {
+            setError(msg || "Impossible de charger votre profil. Réessayez.");
+          }
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setProfileLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isHydrated, token]);
 
   useEffect(() => {
     if (phase !== "waiting") return;
@@ -62,19 +104,26 @@ export default function SubscribePaymentPage() {
 
     const poll = setInterval(async () => {
       try {
-        const count = subscribeStorage.incrementPollCount();
         const status = await fetchPaymentStatus(txId);
-        if (status.status === "success" || count >= 3) {
+        if (status.status === "success") {
           clearInterval(poll);
           router.push("/subscribe/success");
         } else if (status.status === "failed") {
           clearInterval(poll);
-          router.push(`/subscribe/error?reason=${status.reason ?? "payment_cancelled"}`);
+          router.push(
+            `/subscribe/error?reason=${status.reason ?? "payment_cancelled"}`
+          );
         }
-      } catch {
-        /* retry */
+        // EN_ATTENTE → on continue de poller jusqu'au timeout (countdown = 0)
+      } catch (err) {
+        // Si session expirée → sortir du polling et afficher l'erreur
+        if (err instanceof Error && /session|connexion/i.test(err.message)) {
+          clearInterval(poll);
+          router.push("/subscribe/error?reason=session_expired");
+        }
+        // Autres erreurs réseau → réessayer au prochain tick
       }
-    }, 2000);
+    }, 3000);
 
     return () => clearInterval(poll);
   }, [phase, router]);
@@ -83,7 +132,7 @@ export default function SubscribePaymentPage() {
     provider &&
     isValidCongoPhone(phone) &&
     plan &&
-    (SUBSCRIBE_MOCK || (userId && token));
+    (SUBSCRIBE_MOCK || (userId && token && planApiId));
 
   const handlePay = async () => {
     if (!canSubmit || !provider) return;
@@ -94,8 +143,7 @@ export default function SubscribePaymentPage() {
 
     try {
       const res = await initiatePayment({
-        userId: userId ?? "mock-user-id",
-        planId: planId!,
+        planApiId: planApiId ?? "mock-plan-id",
         phone,
         provider,
       });
@@ -103,7 +151,11 @@ export default function SubscribePaymentPage() {
       setPhase("waiting");
     } catch (err) {
       setPhase("form");
-      setError(err instanceof Error ? err.message : "Paiement impossible.");
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Impossible d'initier le paiement. Vérifiez votre connexion et réessayez."
+      );
     }
   };
 
@@ -113,9 +165,9 @@ export default function SubscribePaymentPage() {
 
   if (phase === "processing") {
     return (
-      <div className="flex min-h-[70vh] items-center justify-center px-6">
-        <div className="w-full rounded-3xl bg-white p-8 text-center shadow-lg">
-          <Loader2 className="mx-auto h-12 w-12 animate-spin text-violet-600" />
+      <div className="flex min-h-[70vh] items-center justify-center px-4 sm:px-0">
+        <div className="mx-auto w-full max-w-md rounded-3xl bg-white p-8 text-center shadow-lg">
+          <Loader2 className="mx-auto h-12 w-12 animate-spin text-[#004AC6]" />
           <h2 className="mt-4 text-lg font-semibold text-zinc-800">Traitement en cours…</h2>
           <p className="mt-1 text-sm text-zinc-500">
             Connexion au service {provider === "AIRTEL" ? "Airtel" : "MTN"}…
@@ -128,7 +180,7 @@ export default function SubscribePaymentPage() {
   if (phase === "waiting") {
     const progress = ((120 - countdown) / 120) * 100;
     return (
-      <div className="px-6 py-10">
+      <div className="mx-auto max-w-md px-4 py-10 sm:px-0">
         <div className="rounded-3xl bg-white p-8 text-center shadow-lg">
           <div className="mx-auto flex h-16 w-16 animate-pulse items-center justify-center rounded-full bg-amber-400/15">
             <Smartphone className="h-8 w-8 text-amber-500" />
@@ -143,7 +195,7 @@ export default function SubscribePaymentPage() {
                 cx="40"
                 cy="40"
                 r="34"
-                stroke={countdown < 30 ? "#EF4444" : countdown < 60 ? "#F59E0B" : "#7C3AED"}
+                stroke={countdown < 30 ? "#EF4444" : countdown < 60 ? "#F59E0B" : "#004AC6"}
                 strokeWidth="6"
                 fill="none"
                 strokeDasharray={`${2 * Math.PI * 34}`}
@@ -177,11 +229,20 @@ export default function SubscribePaymentPage() {
   return (
     <div className="pb-8">
       <StepIndicator current={3} />
-      <div className="space-y-6 px-6 pt-6">
-        <PaymentSummary plan={plan} />
+      <div className="mx-auto w-full max-w-lg pt-6 sm:max-w-xl">
+        <AccountInfoCard profile={profile} loading={profileLoading} />
 
-        <div>
-          <h2 className="mb-3 text-base font-semibold text-zinc-800">Mode de paiement</h2>
+        <section className="mt-6">
+          <h2 className="mb-3 text-base font-semibold text-zinc-800 sm:text-lg">
+            Votre formule
+          </h2>
+          <PaymentSummary plan={plan} />
+        </section>
+
+        <section className="mt-6">
+          <h2 className="mb-3 text-base font-semibold text-zinc-800 sm:text-lg">
+            Mode de paiement
+          </h2>
           <div className="space-y-3">
             <PaymentMethod
               provider="MTN"
@@ -206,18 +267,20 @@ export default function SubscribePaymentPage() {
               onPhoneChange={setPhone}
             />
           </div>
-        </div>
 
-        {error && <p className="text-sm text-red-500">{error}</p>}
+          {error && <p className="mt-4 text-sm text-red-500">{error}</p>}
 
-        <PrimaryButton disabled={!canSubmit} onClick={handlePay}>
-          Continuer
-        </PrimaryButton>
+          <div className="mt-6">
+            <PrimaryButton disabled={!canSubmit || profileLoading} onClick={handlePay}>
+              Payer
+            </PrimaryButton>
+          </div>
 
-        <p className="flex items-center justify-center gap-1 text-xs text-zinc-400">
-          <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-          Transaction sécurisée et chiffrée
-        </p>
+          <p className="mt-4 flex items-center justify-center gap-1 text-xs text-zinc-400">
+            <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
+            Transaction sécurisée et chiffrée
+          </p>
+        </section>
       </div>
     </div>
   );

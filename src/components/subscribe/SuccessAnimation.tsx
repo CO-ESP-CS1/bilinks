@@ -8,21 +8,25 @@ type SuccessAnimationProps = {
 };
 
 export function SuccessAnimation({ onComplete }: SuccessAnimationProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
+    const container = containerRef.current;
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!container || !canvas) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    const width = container.offsetWidth;
+    const height = container.offsetHeight;
+    canvas.width = width;
+    canvas.height = height;
 
     const colors = ["#7C3AED", "#6366F1", "#10B981", "#F59E0B", "#EC4899"];
     const particles = Array.from({ length: 40 }, () => ({
-      x: canvas.width / 2,
-      y: canvas.height / 2,
+      x: width / 2,
+      y: height / 2,
       vx: (Math.random() - 0.5) * 12,
       vy: (Math.random() - 0.8) * 12,
       life: 1,
@@ -33,7 +37,7 @@ export function SuccessAnimation({ onComplete }: SuccessAnimationProps) {
 
     let frame = 0;
     const animate = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.clearRect(0, 0, width, height);
       particles.forEach((p) => {
         p.x += p.vx;
         p.y += p.vy;
@@ -57,13 +61,16 @@ export function SuccessAnimation({ onComplete }: SuccessAnimationProps) {
   }, [onComplete]);
 
   return (
-    <div className="relative flex flex-col items-center">
-      <canvas ref={canvasRef} className="pointer-events-none fixed inset-0 z-0" />
+    <div
+      ref={containerRef}
+      className="relative mx-auto flex h-32 w-full max-w-xs items-center justify-center"
+    >
+      <canvas ref={canvasRef} className="pointer-events-none absolute inset-0 z-0" />
       <motion.div
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
         transition={{ type: "spring", stiffness: 260, damping: 18, delay: 0.05 }}
-        className="relative z-10 flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-[0_16px_48px_rgba(16,185,129,0.35)]"
+        className="relative flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-[0_16px_48px_rgba(16,185,129,0.35)]"
       >
         <motion.svg
           width="48"

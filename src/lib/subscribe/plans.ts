@@ -4,6 +4,8 @@ export type PaymentProvider = "MTN" | "AIRTEL";
 
 export type SubscribePlan = {
   id: SubscribePlanId;
+  /** UUID backend (`GET /plans`) */
+  apiId?: string;
   name: string;
   price: number;
   period: string;
@@ -33,7 +35,7 @@ export const SUBSCRIBE_PLANS: SubscribePlan[] = [
   {
     id: "MENSUEL",
     name: "Mensuel",
-    price: 4500,
+    price: 4900,
     period: "/mois",
     badge: "Le plus choisi",
     highlight: true,
@@ -48,11 +50,11 @@ export const SUBSCRIBE_PLANS: SubscribePlan[] = [
   {
     id: "ANNUEL",
     name: "Annuel",
-    price: 40000,
+    price: 39900,
     period: "/an",
     badge: "Meilleure valeur",
-    savings: "-26%",
-    monthlyNote: "soit 3 333 F CFA / mois",
+    savings: "-32%",
+    monthlyNote: "soit 3 325 F CFA / mois",
     accent: "green",
     features: [
       "Catalogue Premium",
