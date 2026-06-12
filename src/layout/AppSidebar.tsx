@@ -22,6 +22,7 @@ import {
   PencilIcon,
   PieChartIcon,
   ShootingStarIcon,
+  VideoIcon,
 } from "../icons/index";
 import { BrandMark } from "@/components/common/BrandMark";
 
@@ -46,6 +47,8 @@ function iconForItem(item: AdminNavItem): React.ReactNode {
       return <DollarLineIcon />;
     case "/admin/bibliotheques":
       return <BoxCubeIcon />;
+    case "/admin/videos-educatives":
+      return <VideoIcon />;
     case "/admin/defis":
       return <BoltIcon />;
     case "/admin/commentaires":

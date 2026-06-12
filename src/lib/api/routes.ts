@@ -73,6 +73,16 @@ export const ADMIN_ROUTES = {
     create: "/admin/notifications",
     delete: (id: string) => `/admin/notifications/${id}`,
   },
+  youtube: {
+    channels: "/admin/youtube/channels",
+    createChannel: "/admin/youtube/channels",
+    activateChannel: (id: string) => `/admin/youtube/channels/${id}/activate`,
+    deactivateChannel: (id: string) => `/admin/youtube/channels/${id}/deactivate`,
+    deleteChannel: (id: string) => `/admin/youtube/channels/${id}`,
+    sync: "/admin/youtube/sync",
+    publicVideos: "/youtube/videos",
+    publicChannels: "/youtube/channels",
+  },
 } as const;
 
 export const AUTH_ROUTES = {

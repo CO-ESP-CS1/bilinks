@@ -33,6 +33,7 @@ export const adminNavSections: AdminNavSection[] = [
     title: "Contenu",
     items: [
       { name: "Bibliothèques", path: "/admin/bibliotheques" },
+      { name: "Vidéos éducatives", path: "/admin/videos-educatives" },
       { name: "Défis & Badges", path: "/admin/defis" },
       { name: "Commentaires", path: "/admin/commentaires" },
     ],
