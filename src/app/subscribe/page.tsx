@@ -76,7 +76,7 @@ export default function SubscribePage() {
           variants={staggerContainer}
           initial="hidden"
           animate="visible"
-          className="mx-auto mt-8 grid max-w-5xl grid-cols-1 gap-4 sm:gap-5 md:grid-cols-2 md:gap-6 lg:grid-cols-3"
+          className="mx-auto mt-6 grid max-w-5xl grid-cols-1 gap-3 sm:mt-8 sm:gap-5 md:grid-cols-2 md:gap-6 lg:grid-cols-3"
         >
           {plans.map((plan) => (
             <motion.div key={plan.id} variants={fadeUp} className="flex">

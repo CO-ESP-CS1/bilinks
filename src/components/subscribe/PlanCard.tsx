@@ -25,7 +25,7 @@ export function PlanCard({ plan, selected, disabled, onSelect }: PlanCardProps) 
       whileTap={disabled ? undefined : { scale: 0.99 }}
       onClick={onSelect}
       className={cn(
-        "relative flex h-full w-full flex-col rounded-2xl p-6 text-left transition-shadow duration-200",
+        "relative flex h-full w-full flex-col rounded-2xl p-4 text-left transition-shadow duration-200 sm:p-6",
         isHighlight
           ? "border border-[#003494]/20 bg-[#004AC6] text-white shadow-[0_8px_32px_rgba(0,74,198,0.22)]"
           : "border border-zinc-200 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04),0_4px_16px_rgba(0,0,0,0.05)] hover:shadow-[0_4px_24px_rgba(0,74,198,0.09),0_1px_3px_rgba(0,0,0,0.04)]",
@@ -73,10 +73,10 @@ export function PlanCard({ plan, selected, disabled, onSelect }: PlanCardProps) 
       </h3>
 
       <div className="mt-2 flex items-end gap-1.5">
-        <span className={cn("text-4xl font-black", isHighlight ? "text-white" : "text-zinc-900")}>
+        <span className={cn("text-3xl font-black sm:text-4xl", isHighlight ? "text-white" : "text-zinc-900")}>
           {formatXaf(plan.price)}
         </span>
-        <span className={cn("pb-1 text-lg font-semibold", isHighlight ? "text-white/65" : "text-zinc-500")}>
+        <span className={cn("pb-1 text-base font-semibold sm:text-lg", isHighlight ? "text-white/65" : "text-zinc-500")}>
           F CFA
         </span>
         <span className={cn("pb-1 text-sm", isHighlight ? "text-white/55" : "text-zinc-400")}>
@@ -117,7 +117,7 @@ export function PlanCard({ plan, selected, disabled, onSelect }: PlanCardProps) 
 
       <div
         className={cn(
-          "mt-auto flex h-12 items-center justify-center rounded-xl pt-5 text-sm font-semibold transition",
+          "mt-5 flex w-full items-center justify-center rounded-xl py-3 text-sm font-semibold transition",
           isHighlight
             ? "bg-white text-[#004AC6] shadow-[0_4px_16px_rgba(0,0,0,0.1)]"
             : isWarm
