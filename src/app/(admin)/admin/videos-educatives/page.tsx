@@ -600,39 +600,6 @@ export default function VideosEducativesPage() {
         </div>
       )}
 
-      {/* Bloc info conformité */}
-      <div className="rounded-xl border border-gray-200 bg-white p-5 dark:border-white/[0.05] dark:bg-white/[0.03]">
-        <h3 className="mb-3 text-sm font-semibold text-gray-700 dark:text-gray-300">
-          Conformité YouTube & App Stores
-        </h3>
-        <ul className="space-y-1.5 text-sm text-gray-500 dark:text-gray-400">
-          <li className="flex items-start gap-2">
-            <svg className="mt-0.5 size-4 shrink-0 text-success-500" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            Lecture via <strong>react-native-youtube-iframe</strong> (player officiel HTML5, branding conservé)
-          </li>
-          <li className="flex items-start gap-2">
-            <svg className="mt-0.5 size-4 shrink-0 text-success-500" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            Uniquement <strong>YouTube Data API v3</strong> — pas de scraping ni d&apos;extraction de flux
-          </li>
-          <li className="flex items-start gap-2">
-            <svg className="mt-0.5 size-4 shrink-0 text-success-500" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <path d="M5 13l4 4L19 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            Quota API optimisé — <code className="rounded bg-gray-100 px-1 dark:bg-white/10">playlistItems.list</code> (1 unit/page) au lieu de <code className="rounded bg-gray-100 px-1 dark:bg-white/10">search.list</code> (100 units)
-          </li>
-          <li className="flex items-start gap-2">
-            <svg className="mt-0.5 size-4 shrink-0 text-warning-500" viewBox="0 0 24 24" fill="none" aria-hidden>
-              <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            Quota par défaut : <strong>10 000 units/jour</strong> — demandez un quota supérieur si vous gérez &gt; 20 chaînes actives
-          </li>
-        </ul>
-      </div>
-
       {/* Modal ajout */}
       <Modal
         isOpen={modalOpen}

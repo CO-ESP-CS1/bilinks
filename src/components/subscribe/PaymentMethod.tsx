@@ -67,7 +67,7 @@ export function PaymentMethod({
             className="overflow-hidden"
           >
             <div className="mt-3 border-t border-zinc-100 pt-3">
-              <PhoneInput value={phone} onChange={onPhoneChange} />
+              <PhoneInput value={phone} onChange={onPhoneChange} provider={provider === "MTN" ? "MTN" : "AIRTEL"} />
               <p className="mt-2 flex items-center gap-1 text-xs text-zinc-400">
                 <Info className="h-3.5 w-3.5 shrink-0" />
                 Vous recevrez une notification {provider === "MTN" ? "MTN MoMo" : "Airtel Money"}
