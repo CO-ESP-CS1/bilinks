@@ -4,7 +4,7 @@
   type StatutLivre,
 } from "@/lib/mock-data";
 import { mapAdminBookToMockLivre } from "@/lib/api/adapters";
-import { isAdminListApiReady, useDemoDataOnly } from "@/lib/api/admin-list-fetch";
+import { isAdminListApiReady, isDemoDataOnly } from "@/lib/api/admin-list-fetch";
 import { apiRequest, isApiConfigured } from "@/lib/api/client";
 import type {
   AdminBookArchiveResponse,
@@ -89,7 +89,7 @@ function setCache(livres: MockLivre[]): void {
 }
 
 export function ensureLivres(): MockLivre[] {
-  if (!useDemoDataOnly()) {
+  if (!isDemoDataOnly()) {
     return apiCache ?? readLivres();
   }
   if (apiCache?.length) return apiCache;
@@ -102,7 +102,7 @@ export function ensureLivres(): MockLivre[] {
 }
 
 export function getAllLivres(): MockLivre[] {
-  if (!useDemoDataOnly()) {
+  if (!isDemoDataOnly()) {
     return apiCache ?? readLivres();
   }
   return apiCache ?? ensureLivres();

@@ -1,6 +1,6 @@
 import { mockBibliotheques, type MockBibliotheque } from "@/lib/mock-data";
 import { mapAdminLibraryToMock } from "@/lib/api/adapters";
-import { isAdminListApiReady, useDemoDataOnly } from "@/lib/api/admin-list-fetch";
+import { isAdminListApiReady, isDemoDataOnly } from "@/lib/api/admin-list-fetch";
 import type {
   AdminLibrariesListResponse,
   AdminLibraryAddBooksResponse,
@@ -57,7 +57,7 @@ function setCache(rows: MockBibliotheque[]): void {
 }
 
 function ensureLibraries(): MockBibliotheque[] {
-  if (!useDemoDataOnly()) {
+  if (!isDemoDataOnly()) {
     return (apiCache ?? readLibraries().map(normalize));
   }
   if (apiCache?.length) return apiCache;
@@ -70,7 +70,7 @@ function ensureLibraries(): MockBibliotheque[] {
 }
 
 export function getAllLibraries(includeDeleted = false): MockBibliotheque[] {
-  const list = useDemoDataOnly()
+  const list = isDemoDataOnly()
     ? (apiCache ?? ensureLibraries())
     : (apiCache ?? readLibraries().map(normalize));
   return includeDeleted ? list : list.filter((b) => !isSoftDeleted(b.deletedAt));

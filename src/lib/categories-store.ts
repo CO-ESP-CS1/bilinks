@@ -1,6 +1,6 @@
 ﻿import { mockCategories, type MockCategorie } from "@/lib/mock-data";
 import { mapAdminCategorieToMock } from "@/lib/api/adapters";
-import { isAdminListApiReady, useDemoDataOnly } from "@/lib/api/admin-list-fetch";
+import { isAdminListApiReady, isDemoDataOnly } from "@/lib/api/admin-list-fetch";
 import { apiRequest, isApiConfigured } from "@/lib/api/client";
 import type {
   AdminCategoriesListResponse,
@@ -59,7 +59,7 @@ function setCache(categories: MockCategorie[]): void {
 }
 
 export function ensureCategories(): MockCategorie[] {
-  if (!useDemoDataOnly()) {
+  if (!isDemoDataOnly()) {
     return apiCache ?? readCategories().map(normalize);
   }
   if (apiCache?.length) return apiCache;
@@ -72,7 +72,7 @@ export function ensureCategories(): MockCategorie[] {
 }
 
 export function getAllCategories(includeDeleted = false): MockCategorie[] {
-  const list = useDemoDataOnly()
+  const list = isDemoDataOnly()
     ? (apiCache ?? ensureCategories())
     : (apiCache ?? readCategories().map(normalize));
   return includeDeleted ? list : list.filter((c) => !isSoftDeleted(c.deletedAt));

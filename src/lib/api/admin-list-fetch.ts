@@ -2,7 +2,7 @@ import { getApiBearerToken } from "@/lib/api/auth-token";
 import { isApiConfigured } from "@/lib/api/client";
 
 /** Mode démo hors API (pas de NEXT_PUBLIC_API_BASE_URL). */
-export function useDemoDataOnly(): boolean {
+export function isDemoDataOnly(): boolean {
   return !isApiConfigured();
 }
 

@@ -2,7 +2,7 @@ import { mockDefis, type MockDefi, type StatutDefi, type TypeDefi } from "@/lib/
 
 import { mapAdminChallengeToMock } from "@/lib/api/adapters";
 
-import { isAdminListApiReady, useDemoDataOnly } from "@/lib/api/admin-list-fetch";
+import { isAdminListApiReady, isDemoDataOnly } from "@/lib/api/admin-list-fetch";
 
 import type {
 
@@ -125,7 +125,7 @@ function setCache(rows: MockDefi[]): void {
 
 function ensureChallenges(): MockDefi[] {
 
-  if (!useDemoDataOnly()) {
+  if (!isDemoDataOnly()) {
 
     return (apiCache ?? readChallenges().map(normalize));
 
@@ -151,7 +151,7 @@ function ensureChallenges(): MockDefi[] {
 
 export function getAllChallenges(): MockDefi[] {
 
-  return useDemoDataOnly()
+  return isDemoDataOnly()
 
     ? (apiCache ?? ensureChallenges())
 

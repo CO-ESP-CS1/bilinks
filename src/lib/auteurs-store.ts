@@ -1,6 +1,6 @@
 ﻿import { mockAuteurs, type MockAuteur } from "@/lib/mock-data";
 import { mapAdminAuteurToMock } from "@/lib/api/adapters";
-import { isAdminListApiReady, useDemoDataOnly } from "@/lib/api/admin-list-fetch";
+import { isAdminListApiReady, isDemoDataOnly } from "@/lib/api/admin-list-fetch";
 import { apiRequest, isApiConfigured } from "@/lib/api/client";
 import type {
   AdminAuteurApi,
@@ -53,7 +53,7 @@ function setCache(auteurs: MockAuteur[]): void {
 }
 
 export function ensureAuteurs(): MockAuteur[] {
-  if (!useDemoDataOnly()) {
+  if (!isDemoDataOnly()) {
     return (apiCache ?? readAuteurs().map(normalize));
   }
   if (apiCache?.length) return apiCache;
@@ -66,7 +66,7 @@ export function ensureAuteurs(): MockAuteur[] {
 }
 
 export function getAllAuteurs(includeDeleted = false): MockAuteur[] {
-  const list = useDemoDataOnly()
+  const list = isDemoDataOnly()
     ? (apiCache ?? ensureAuteurs())
     : (apiCache ?? readAuteurs().map(normalize));
   return includeDeleted ? list : list.filter((a) => !isSoftDeleted(a.deletedAt));

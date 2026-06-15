@@ -19,7 +19,7 @@ import type {
   AdminUsersListResponse,
   AdminUserStatutResponse,
 } from "@/lib/api/admin-types";
-import { isAdminListApiReady, useDemoDataOnly } from "@/lib/api/admin-list-fetch";
+import { isAdminListApiReady, isDemoDataOnly } from "@/lib/api/admin-list-fetch";
 import { apiRequest, isApiConfigured } from "@/lib/api/client";
 import { messageFromApiError, SESSION_REQUIRED_MESSAGE } from "@/lib/api/errors";
 import { buildAdminUsersQuery } from "@/lib/admin/validators";
@@ -67,7 +67,7 @@ function setCache(users: MockUtilisateur[]): void {
 }
 
 export function ensureUsers(): MockUtilisateur[] {
-  if (!useDemoDataOnly()) {
+  if (!isDemoDataOnly()) {
     return apiCache ?? readUsers();
   }
   if (apiCache?.length) return apiCache;
@@ -80,7 +80,7 @@ export function ensureUsers(): MockUtilisateur[] {
 }
 
 export function getAllUsers(includeDeleted = false): MockUtilisateur[] {
-  const raw = useDemoDataOnly()
+  const raw = isDemoDataOnly()
     ? (apiCache ?? ensureUsers())
     : (apiCache ?? readUsers());
   const list = raw.map((u) => ({
