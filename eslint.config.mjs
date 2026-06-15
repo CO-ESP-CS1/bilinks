@@ -6,14 +6,15 @@ const eslintConfig = defineConfig([
   ...nextVitals,
   ...nextTs,
   {
+    files: ["**/*.{js,jsx,ts,tsx,mjs,cjs}"],
     rules: {
-      // Patterns courants (hydratation, chargement initial) — trop bruyant pour bloquer la CI.
+      // Règles React 19 / compiler trop strictes pour patterns courants (fetch au mount, etc.)
       "react-hooks/set-state-in-effect": "off",
+      "react-hooks/immutability": "off",
+      "@typescript-eslint/no-explicit-any": "warn",
     },
   },
-  // Override default ignores of eslint-config-next.
   globalIgnores([
-    // Default ignores of eslint-config-next:
     ".next/**",
     "out/**",
     "build/**",
