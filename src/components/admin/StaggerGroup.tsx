@@ -20,12 +20,15 @@ export function StaggerGroup({
   staggerMs = 70,
   baseDelayMs = 80,
 }: StaggerGroupProps) {
-  let index = 0;
+  const childArray = React.Children.toArray(children);
 
-  const enhanced = React.Children.map(children, (child) => {
+  const enhanced = childArray.map((child, i) => {
     if (!React.isValidElement(child)) return child;
-    const delay = baseDelayMs + index * staggerMs;
-    index += 1;
+
+    const validIndex = childArray
+      .slice(0, i)
+      .filter((c) => React.isValidElement(c)).length;
+    const delay = baseDelayMs + validIndex * staggerMs;
 
     const el = child as React.ReactElement<{
       className?: string;
