@@ -97,6 +97,7 @@ function mapHttpError(
       return "Formule d'abonnement introuvable.";
     if (/already.*subscri|abonnement.*actif/i.test(m))
       return "Vous avez déjà un abonnement actif sur ce compte.";
+    if (status >= 500) return apiMsg;
   }
 
   switch (status) {
@@ -171,8 +172,9 @@ function mockSession(email: string, firstName?: string) {
 export function toCongoMsisdn(phone: string): string {
   const digits = phone.replace(/\D/g, "");
   if (digits.startsWith("242")) return digits;
-  if (digits.startsWith("0")) return `242${digits.slice(1)}`;
-  return `242${digits}`;
+  // Aligné mobile (PhoneAuthInput → +242069502385 → 242069502385 pour PawaPay COG)
+  if (digits.startsWith("0")) return `242${digits}`;
+  return `2420${digits}`;
 }
 
 function mapPaymentStatus(statut: string): "pending" | "success" | "failed" {
@@ -353,9 +355,6 @@ export async function initiatePayment(input: {
       409: "Vous avez déjà un abonnement actif sur ce compte.",
       422: "Numéro de téléphone incompatible avec l'opérateur choisi.",
       429: "Trop de tentatives de paiement. Attendez quelques minutes avant de réessayer.",
-      500: "Le service de paiement est temporairement indisponible. Réessayez dans quelques instants.",
-      502: "Le service de paiement est temporairement indisponible. Réessayez dans quelques instants.",
-      503: "Le service de paiement est temporairement indisponible. Réessayez dans quelques instants.",
     }
   );
 

@@ -9,6 +9,7 @@ type PhoneInputProps = {
 };
 
 export function PhoneInput({ value, onChange, provider }: PhoneInputProps) {
+  // Numéro Congo local: 9 chiffres (ex: 069502385)
   const digits = value.replace(/\D/g, "").slice(0, 9);
 
   const formatted = digits.replace(/(\d{2})(?=\d)/g, "$1 ").trim();
@@ -42,5 +43,8 @@ export function maskPhone(phone: string): string {
 
 export function isValidCongoPhone(phone: string): boolean {
   const d = phone.replace(/\D/g, "");
-  return d.length >= 9 && /^0?[56]/.test(d);
+  // Accepte:
+  // - format local: 06XXXXXXX / 05XXXXXXX (9 chiffres)
+  // - format international: 2426XXXXXXX / 2425XXXXXXX (11 chiffres)
+  return /^(0[56]\d{7}|242[56]\d{7})$/.test(d);
 }
