@@ -1,6 +1,6 @@
 ﻿import { mockAuteurs, type MockAuteur } from "@/lib/mock-data";
 import { mapAdminAuteurToMock } from "@/lib/api/adapters";
-import { isAdminListApiReady, isDemoDataOnly } from "@/lib/api/admin-list-fetch";
+import { isAdminListApiReady , API_REQUIRED_MESSAGE } from "@/lib/api/admin-list-fetch";
 import { apiRequest, isApiConfigured } from "@/lib/api/client";
 import type {
   AdminAuteurApi,
@@ -49,26 +49,14 @@ function normalize(a: MockAuteur): MockAuteur {
 
 function setCache(auteurs: MockAuteur[]): void {
   apiCache = auteurs;
-  writeAuteurs(auteurs);
 }
 
 export function ensureAuteurs(): MockAuteur[] {
-  if (!isDemoDataOnly()) {
-    return (apiCache ?? readAuteurs().map(normalize));
-  }
-  if (apiCache?.length) return apiCache;
-  let auteurs = readAuteurs().map(normalize);
-  if (auteurs.length === 0) {
-    auteurs = mockAuteurs.map((a) => ({ ...a, deletedAt: a.deletedAt ?? null }));
-    writeAuteurs(auteurs);
-  }
-  return auteurs;
+  return apiCache ?? [];
 }
 
 export function getAllAuteurs(includeDeleted = false): MockAuteur[] {
-  const list = isDemoDataOnly()
-    ? (apiCache ?? ensureAuteurs())
-    : (apiCache ?? readAuteurs().map(normalize));
+  const list = apiCache ?? [];
   return includeDeleted ? list : list.filter((a) => !isSoftDeleted(a.deletedAt));
 }
 
@@ -81,7 +69,7 @@ export async function fetchAuteursPersisted(options?: {
   page?: number;
 }): Promise<MockAuteur[]> {
   if (!isApiConfigured()) {
-    return ensureAuteurs();
+    return [];
   }
   if (!isAdminListApiReady()) {
     return [];
@@ -141,7 +129,7 @@ export async function createAuteurPersisted(input: {
     }
   }
 
-  return createAuteurLocal(input);
+  return { ok: false, error: API_REQUIRED_MESSAGE };
 }
 
 export async function updateAuteurPersisted(
@@ -180,7 +168,7 @@ export async function updateAuteurPersisted(
     }
   }
 
-  return updateAuteurLocal(id, patch);
+  return { ok: false, error: API_REQUIRED_MESSAGE };
 }
 
 export async function softDeleteAuteurPersisted(
@@ -202,10 +190,7 @@ export async function softDeleteAuteurPersisted(
     }
   }
 
-  if (!softDeleteAuteurLocal(id)) {
-    return { ok: false, error: "Auteur introuvable." };
-  }
-  return { ok: true };
+  return { ok: false, error: API_REQUIRED_MESSAGE };
 }
 
 /** @deprecated Préférer createAuteurPersisted */
@@ -213,7 +198,7 @@ export function createAuteur(input: {
   prenom: string;
   nom: string;
 }): { ok: true; auteur: MockAuteur } | { ok: false; error: string } {
-  return createAuteurLocal({ ...input, bio: "" });
+  return { ok: false, error: API_REQUIRED_MESSAGE };
 }
 
 function createAuteurLocal(input: {
@@ -243,7 +228,7 @@ export function updateAuteur(
   patch: Pick<MockAuteur, "prenom" | "nom">
 ): { ok: true; auteur: MockAuteur } | { ok: false; error: string } {
   const existing = getAuteurById(id);
-  return updateAuteurLocal(id, { ...patch, bio: existing?.bio ?? "" });
+  return { ok: false, error: API_REQUIRED_MESSAGE };
 }
 
 function updateAuteurLocal(
@@ -273,7 +258,8 @@ function updateAuteurLocal(
 
 /** @deprecated Préférer softDeleteAuteurPersisted */
 export function softDeleteAuteur(id: string): boolean {
-  return softDeleteAuteurLocal(id);
+  void id;
+  return false;
 }
 
 function softDeleteAuteurLocal(id: string): boolean {

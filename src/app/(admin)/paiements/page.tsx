@@ -41,6 +41,71 @@ function dateHeureFr(iso: string): string {
 const selectClass =
   "h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800";
 
+function TextSkeleton({ className = "" }: { className?: string }) {
+  return (
+    <div
+      className={`animate-pulse rounded bg-gray-200 dark:bg-white/10 ${className}`}
+      aria-hidden
+    />
+  );
+}
+
+function PaymentsStatsSkeleton() {
+  return (
+    <div
+      className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6 xl:grid-cols-4"
+      aria-busy="true"
+      aria-label="Chargement du résumé financier"
+    >
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div
+          key={i}
+          className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6"
+        >
+          <TextSkeleton className="h-4 w-40" />
+          <TextSkeleton className="mt-3 h-8 w-28" />
+          <TextSkeleton className="mt-3 h-3 w-full max-w-xs" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PaymentsTableSkeleton() {
+  return (
+    <div
+      className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]"
+      aria-busy="true"
+      aria-label="Chargement des paiements"
+    >
+      <div className="max-w-full overflow-x-auto">
+        <div className="min-w-[1150px]">
+          <div className="flex gap-3 border-b border-gray-100 px-4 py-3 dark:border-white/[0.05]">
+            {Array.from({ length: 9 }).map((_, i) => (
+              <TextSkeleton key={i} className="h-4 w-16" />
+            ))}
+          </div>
+          <div className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-3">
+                <TextSkeleton className="h-4 w-28" />
+                <TextSkeleton className="h-4 w-20" />
+                <TextSkeleton className="h-4 w-16" />
+                <TextSkeleton className="h-4 w-20" />
+                <TextSkeleton className="h-4 w-24" />
+                <TextSkeleton className="h-6 w-16 rounded-full" />
+                <TextSkeleton className="h-4 w-32" />
+                <TextSkeleton className="h-4 w-28" />
+                <TextSkeleton className="h-8 w-24 rounded-lg" />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function PaiementsPage() {
   const [paiements, setPaiements] = useState<MockPaiement[]>([]);
   const [filtreStatut, setFiltreStatut] = useState<
@@ -50,13 +115,21 @@ export default function PaiementsPage() {
   const [detailPaiement, setDetailPaiement] = useState<MockPaiement | null>(
     null
   );
+  const [loadingPaiements, setLoadingPaiements] = useState(true);
 
   const apiMode = isApiConfigured();
 
   const chargerPaiements = useCallback(async () => {
-    const statut =
-      apiMode && filtreStatut !== "tous" ? filtreStatut : undefined;
-    setPaiements(await fetchPaymentsPersisted(statut ? { statut } : undefined));
+    setLoadingPaiements(true);
+    try {
+      const statut =
+        apiMode && filtreStatut !== "tous" ? filtreStatut : undefined;
+      setPaiements(
+        await fetchPaymentsPersisted(statut ? { statut } : undefined)
+      );
+    } finally {
+      setLoadingPaiements(false);
+    }
   }, [apiMode, filtreStatut]);
 
   useEffect(() => {
@@ -109,8 +182,11 @@ export default function PaiementsPage() {
     });
   }, [paiements, filtreStatut, filtreOperateur, apiMode]);
 
+  const showPageSkeleton = apiMode && loadingPaiements && paiements.length === 0;
+  const listRefreshing = apiMode && loadingPaiements && paiements.length > 0;
+
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" aria-busy={showPageSkeleton}>
       <Breadcrumb items={adminCrumb("Paiements")} />
       <div>
         <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">
@@ -125,6 +201,16 @@ export default function PaiementsPage() {
         <h2 className="mb-4 text-lg font-semibold text-gray-800 dark:text-white/90">
           Résumé financier
         </h2>
+        {showPageSkeleton ? (
+          <PaymentsStatsSkeleton />
+        ) : (
+        <div
+          className={
+            listRefreshing
+              ? "pointer-events-none opacity-60 transition-opacity"
+              : "transition-opacity"
+          }
+        >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 md:gap-6">
           <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
             <span className="text-sm text-gray-500 dark:text-gray-400">
@@ -172,6 +258,8 @@ export default function PaiementsPage() {
             </p>
           </div>
         </div>
+        </div>
+        )}
       </section>
 
       <section>
@@ -214,13 +302,22 @@ export default function PaiementsPage() {
           </div>
         </div>
 
-        {listeFiltree.length === 0 ? (
+        {showPageSkeleton ? (
+          <PaymentsTableSkeleton />
+        ) : !loadingPaiements && listeFiltree.length === 0 ? (
           <EmptyState
             icon={<DollarLineIcon className="size-7" />}
             message="Aucun paiement trouvé pour ce filtre."
             onReset={reinitialiserFiltres}
           />
         ) : (
+          <div
+            className={
+              listRefreshing
+                ? "pointer-events-none opacity-60 transition-opacity"
+                : "transition-opacity"
+            }
+          >
           <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
             <div className="max-w-full overflow-x-auto">
               <div className="min-w-[1150px]">
@@ -304,6 +401,7 @@ export default function PaiementsPage() {
                 </Table>
               </div>
             </div>
+          </div>
           </div>
         )}
       </section>

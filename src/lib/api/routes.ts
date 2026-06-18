@@ -43,11 +43,14 @@ export const ADMIN_ROUTES = {
   subscriptions: {
     list: "/admin/subscriptions",
     cancel: (id: string) => `/admin/subscriptions/${id}/cancel`,
+    suspend: (id: string) => `/admin/subscriptions/${id}/suspend`,
+    activate: (id: string) => `/admin/subscriptions/${id}/activate`,
   },
   payments: { list: "/admin/payments" },
   comments: {
     list: "/admin/comments",
     moderate: (id: string) => `/admin/comments/${id}/moderate`,
+    republish: (id: string) => `/admin/comments/${id}/republish`,
     byId: (id: string) => `/admin/comments/${id}`,
   },
   challenges: {
@@ -67,6 +70,7 @@ export const ADMIN_ROUTES = {
     users: "/admin/stats/users",
     books: "/admin/stats/books",
     searchTerms: "/admin/stats/search-terms",
+    activity: "/admin/stats/activity",
   },
   notifications: {
     list: "/admin/notifications",
@@ -87,4 +91,10 @@ export const ADMIN_ROUTES = {
 
 export const AUTH_ROUTES = {
   login: "/auth/password/login",
+  changePassword: "/auth/password/change",
+} as const;
+
+export const PROFILE_ROUTES = {
+  me: "/me",
+  photo: "/me/photo",
 } as const;

@@ -35,16 +35,62 @@ export function PhoneInput({ value, onChange, provider }: PhoneInputProps) {
 }
 
 export function maskPhone(phone: string): string {
-  const d = phone.replace(/\D/g, "");
-  if (d.length < 3) return "+242 …";
-  const prefix = d.startsWith("5") || d.startsWith("05") ? "05" : "06";
-  return `+242 ${prefix}X XXX XX ${d.slice(-2)}`;
+  const local = toLocalNineDigits(phone);
+  if (!local || local.length < 3) return "+242 …";
+  const prefix = local.slice(0, 2);
+  return `+242 ${prefix}X XXX XX ${local.slice(-2)}`;
 }
 
-export function isValidCongoPhone(phone: string): boolean {
+function toLocalNineDigits(phone: string): string | null {
   const d = phone.replace(/\D/g, "");
-  // Accepte:
-  // - format local: 06XXXXXXX / 05XXXXXXX (9 chiffres)
-  // - format international: 2426XXXXXXX / 2425XXXXXXX (11 chiffres)
-  return /^(0[56]\d{7}|242[56]\d{7})$/.test(d);
+  if (/^0[56]\d{7}$/.test(d)) return d;
+  if (/^242[56]\d{7}$/.test(d)) return `0${d.slice(3)}`;
+  return null;
+}
+
+function localPrefix(phone: string): string | null {
+  const d = phone.replace(/\D/g, "");
+  if (d.length < 2) return null;
+  if (d.startsWith("242")) {
+    if (d.length < 5) return null;
+    return d.slice(3, 5);
+  }
+  if (d.startsWith("0")) return d.slice(0, 2);
+  return `0${d[0]}`;
+}
+
+export function isValidCongoPhone(
+  phone: string,
+  provider?: "MTN" | "AIRTEL"
+): boolean {
+  const local = toLocalNineDigits(phone);
+  if (!local) return false;
+
+  if (provider === "MTN") return /^06\d{7}$/.test(local);
+  if (provider === "AIRTEL") return /^05\d{7}$/.test(local);
+  return /^0[56]\d{7}$/.test(local);
+}
+
+export function getCongoPhoneProviderError(
+  phone: string,
+  provider: "MTN" | "AIRTEL"
+): string | null {
+  const d = phone.replace(/\D/g, "");
+  if (d.length < 2) return null;
+
+  const prefix = localPrefix(phone);
+  if (!prefix) return null;
+
+  if (provider === "MTN" && prefix !== "06") {
+    return "Les numéros MTN Mobile Money doivent commencer par 06.";
+  }
+  if (provider === "AIRTEL" && prefix !== "05") {
+    return "Les numéros Airtel Money doivent commencer par 05.";
+  }
+
+  if (d.length >= 9 && !isValidCongoPhone(phone, provider)) {
+    return "Numéro incomplet. Saisissez 9 chiffres (ex. 06 95 02 38 5).";
+  }
+
+  return null;
 }

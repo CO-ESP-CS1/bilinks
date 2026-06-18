@@ -6,6 +6,8 @@ import Input from "../form/input/InputField";
 import Label from "../form/Label";
 import { ProfileEditModal } from "./ProfileEditModal";
 import { useAuth } from "@/context/AuthContext";
+import { isApiConfigured } from "@/lib/api/client";
+import { hasApiSession } from "@/lib/api/session";
 import toast from "react-hot-toast";
 
 export default function UserInfoCard() {
@@ -14,8 +16,12 @@ export default function UserInfoCard() {
   const [prenom, setPrenom] = useState("");
   const [nom, setNom] = useState("");
   const [email, setEmail] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   if (!admin) return null;
+
+  const apiMode = isApiConfigured();
+  const apiSessionReady = !apiMode || hasApiSession();
 
   const openEdit = () => {
     setPrenom(admin.prenom);
@@ -24,11 +30,35 @@ export default function UserInfoCard() {
     openModal();
   };
 
-  const handleSave = () => {
-    updateProfile({
-      prenom: prenom.trim(),
-      nom: nom.trim(),
+  const handleSave = async () => {
+    const nextPrenom = prenom.trim();
+    const nextNom = nom.trim();
+
+    if (!nextPrenom) {
+      toast.error("Le prénom est obligatoire.");
+      return;
+    }
+    if (!nextNom) {
+      toast.error("Le nom est obligatoire.");
+      return;
+    }
+    if (apiMode && !apiSessionReady) {
+      toast.error("Connectez-vous pour modifier votre profil.");
+      return;
+    }
+
+    setSubmitting(true);
+    const result = await updateProfile({
+      prenom: nextPrenom,
+      nom: nextNom,
     });
+    setSubmitting(false);
+
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+
     toast.success("Informations mises à jour.");
     closeModal();
   };
@@ -80,8 +110,9 @@ export default function UserInfoCard() {
         isOpen={isOpen}
         onClose={closeModal}
         onSave={handleSave}
+        submitting={submitting}
         title="Modifier les informations"
-        description="Le prénom et le nom (l'e-mail de connexion ne change pas ici)."
+        description="Le prénom et le nom sont enregistrés sur le serveur (l'e-mail ne change pas ici)."
         maxWidth="md"
       >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -90,8 +121,9 @@ export default function UserInfoCard() {
             <Input
               id="profil-prenom"
               type="text"
-              defaultValue={prenom}
+              value={prenom}
               onChange={(e) => setPrenom(e.target.value)}
+              disabled={submitting}
             />
           </div>
           <div>
@@ -99,8 +131,9 @@ export default function UserInfoCard() {
             <Input
               id="profil-nom"
               type="text"
-              defaultValue={nom}
+              value={nom}
               onChange={(e) => setNom(e.target.value)}
+              disabled={submitting}
             />
           </div>
           <div className="sm:col-span-2">
@@ -108,7 +141,7 @@ export default function UserInfoCard() {
             <Input
               id="profil-email"
               type="email"
-              defaultValue={email}
+              value={email}
               disabled
             />
             <p className="mt-1 text-xs text-gray-500">

@@ -6,14 +6,6 @@ import type { ApexOptions } from "apexcharts";
 import { Breadcrumb, adminCrumb } from "@/components/Breadcrumb";
 import { formatXaf } from "@/lib/abonnements-utils";
 import { PieChartIcon } from "@/icons";
-import {
-  mockKPIs,
-  mockLecturesParMois,
-  mockTopLivres,
-  mockCroissanceUtilisateurs,
-  mockRepartitionCategories,
-  mockAbonnementsChart,
-} from "@/lib/mock-data";
 import { isApiConfigured } from "@/lib/api/client";
 import { hasApiSession } from "@/lib/api/session";
 import type {
@@ -69,10 +61,72 @@ const SORT_LABELS: Record<AdminStatsBooksSort, string> = {
   nb_lectures_7j: "Lectures (7 j)",
 };
 
+function TextSkeleton({ className = "" }: { className?: string }) {
+  return (
+    <div
+      className={`animate-pulse rounded bg-gray-200 dark:bg-white/10 ${className}`}
+      aria-hidden
+    />
+  );
+}
+
+function StatsKpiSkeleton() {
+  return (
+    <div
+      className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:gap-6 xl:grid-cols-4"
+      aria-busy="true"
+      aria-label="Chargement des indicateurs"
+    >
+      {Array.from({ length: 4 }).map((_, i) => (
+        <div
+          key={i}
+          className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6"
+        >
+          <TextSkeleton className="h-4 w-32" />
+          <TextSkeleton className="mt-3 h-8 w-24" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ChartCardSkeleton({ tall = false }: { tall?: boolean }) {
+  return (
+    <div
+      className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6"
+      aria-busy="true"
+      aria-label="Chargement du graphique"
+    >
+      <TextSkeleton className="h-5 w-48" />
+      <TextSkeleton className={`mt-6 w-full ${tall ? "h-[320px]" : "h-[300px]"}`} />
+    </div>
+  );
+}
+
+function StatsTableSkeleton({ cols = 4 }: { cols?: number }) {
+  return (
+    <div className="overflow-x-auto" aria-busy="true" aria-label="Chargement du tableau">
+      <div className="flex gap-3 border-b border-gray-100 px-4 py-3 dark:border-white/[0.05]">
+        {Array.from({ length: cols }).map((_, i) => (
+          <TextSkeleton key={i} className="h-4 w-20" />
+        ))}
+      </div>
+      <div className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="flex gap-3 px-4 py-3">
+            {Array.from({ length: cols }).map((__, j) => (
+              <TextSkeleton key={j} className="h-4 w-16" />
+            ))}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export default function StatistiquesPage() {
   const apiMode = isApiConfigured();
   const apiSessionReady = !apiMode || hasApiSession();
-  const showMock = !apiMode;
   const [loading, setLoading] = useState(apiMode);
   const [triLivres, setTriLivres] = useState<AdminStatsBooksSort>("nb_lectures");
   const [periodeRecherche, setPeriodeRecherche] = useState<"7j" | "30j">("30j");
@@ -85,6 +139,9 @@ export default function StatistiquesPage() {
   const [periodeUsers, setPeriodeUsers] = useState<AdminStatsUsersPeriode>("30j");
   const [usersStats, setUsersStats] = useState<StatsUsersView | null>(null);
   const [dashKpi, setDashKpi] = useState<DashboardView | null>(null);
+
+  const showPageSkeleton = apiMode && loading && dashKpi === null;
+  const listRefreshing = apiMode && loading && dashKpi !== null;
 
   useEffect(() => {
     if (!apiMode) return;
@@ -131,25 +188,17 @@ export default function StatistiquesPage() {
   }, [apiMode, periodeUsers]);
 
   const usersSeries = useMemo(
-    () =>
-      showMock
-        ? mockCroissanceUtilisateurs.map((d) => ({
-            mois: d.mois,
-            count: d.total,
-          }))
-        : (usersStats?.inscriptionsParMois ?? []),
-    [showMock, usersStats]
+    () => usersStats?.inscriptionsParMois ?? [],
+    [usersStats]
   );
 
   const lecturesData = useMemo(
     () =>
-      showMock
-        ? mockLecturesParMois.map((d) => ({ mois: d.mois, lectures: d.lectures }))
-        : topLivres.map((l) => ({
-            mois: l.titre.slice(0, 12),
-            lectures: l.nbLectures,
-          })),
-    [showMock, topLivres]
+      topLivres.map((l) => ({
+        mois: l.titre.slice(0, 12),
+        lectures: l.nbLectures,
+      })),
+    [topLivres]
   );
 
   const lecturesOptions = useMemo<ApexOptions>(
@@ -181,14 +230,10 @@ export default function StatistiquesPage() {
     [usersSeries]
   );
 
-  const repartitionStatut = useMemo(() => {
-    if (showMock) {
-      return mockRepartitionCategories.map(
-        (c) => [c.categorie, c.count] as [string, number]
-      );
-    }
-    return Object.entries(usersStats?.repartitionStatut ?? {});
-  }, [showMock, usersStats]);
+  const repartitionStatut = useMemo(
+    () => Object.entries(usersStats?.repartitionStatut ?? {}),
+    [usersStats]
+  );
 
   const categoriesOptions = useMemo<ApexOptions>(
     () => ({
@@ -202,14 +247,8 @@ export default function StatistiquesPage() {
   );
 
   const inscriptionsSeries = useMemo(
-    () =>
-      showMock
-        ? mockAbonnementsChart.map((d) => ({
-            mois: d.mois,
-            count: d.nouveaux,
-          }))
-        : (usersStats?.inscriptionsParMois ?? []),
-    [showMock, usersStats]
+    () => usersStats?.inscriptionsParMois ?? [],
+    [usersStats]
   );
 
   const aboOptions = useMemo<ApexOptions>(
@@ -228,7 +267,7 @@ export default function StatistiquesPage() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" aria-busy={showPageSkeleton}>
       <Breadcrumb items={adminCrumb("Statistiques")} />
       <div className="flex items-start gap-4">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-500/10 text-brand-500 dark:bg-brand-500/15">
@@ -244,58 +283,69 @@ export default function StatistiquesPage() {
         </div>
       </div>
 
-      {apiMode && !apiSessionReady && (
+      {apiMode && !apiSessionReady && !loading && (
         <div className="rounded-xl border border-warning-500/30 bg-warning-50 px-4 py-3 text-sm text-warning-800 dark:border-warning-500/20 dark:bg-warning-500/10 dark:text-warning-300">
           Connectez-vous avec un compte <strong>ADMIN</strong> pour charger les
           statistiques. Sans session active, les graphiques restent vides.
         </div>
       )}
 
-      {apiMode && loading && (
-        <p className="text-sm text-gray-500 dark:text-gray-400">Chargement des statistiques…</p>
-      )}
-
+      {showPageSkeleton ? (
+        <StatsKpiSkeleton />
+      ) : (
+      <div
+        className={
+          listRefreshing
+            ? "pointer-events-none opacity-60 transition-opacity"
+            : "transition-opacity"
+        }
+      >
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4 md:gap-6">
         <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
           <span className="text-sm text-gray-500 dark:text-gray-400">
             {apiMode ? "Lectures (7 j)" : "Lectures (mai)"}
           </span>
           <p className="mt-2 text-title-sm font-bold text-gray-800 dark:text-white/90">
-            {formatEntier(
-              showMock
-                ? (mockLecturesParMois.at(-1)?.lectures ?? 0)
-                : (dashKpi?.nbLectures7j ?? 0)
-            )}
+            {formatEntier(dashKpi?.nbLectures7j ?? 0)}
           </p>
         </div>
         <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
           <span className="text-sm text-gray-500 dark:text-gray-400">Utilisateurs</span>
           <p className="mt-2 text-title-sm font-bold text-gray-800 dark:text-white/90">
-            {formatEntier(
-              showMock ? mockKPIs.totalUtilisateurs : (dashKpi?.totalUtilisateurs ?? 0)
-            )}
+            {formatEntier(dashKpi?.totalUtilisateurs ?? 0)}
           </p>
         </div>
         <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
           <span className="text-sm text-gray-500 dark:text-gray-400">Revenus mensuels</span>
           <p className="mt-2 text-title-sm font-bold text-gray-800 dark:text-white/90">
-            {formatXaf(
-              showMock ? mockKPIs.revenusMonthly : (dashKpi?.revenusMonthly ?? 0)
-            )}
+            {formatXaf(dashKpi?.revenusMonthly ?? 0)}
           </p>
         </div>
         <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
           <span className="text-sm text-gray-500 dark:text-gray-400">Abonnements actifs</span>
           <p className="mt-2 text-title-sm font-bold text-gray-800 dark:text-white/90">
             {formatEntier(
-              showMock
-                ? mockKPIs.abonnementsActifs
-                : (usersStats?.nbAbonnesActifs ?? dashKpi?.abonnementsActifs ?? 0)
+              usersStats?.nbAbonnesActifs ?? dashKpi?.abonnementsActifs ?? 0
             )}
           </p>
         </div>
       </div>
+      </div>
+      )}
 
+      {showPageSkeleton ? (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:gap-6">
+          <ChartCardSkeleton />
+          <ChartCardSkeleton />
+        </div>
+      ) : (
+      <div
+        className={
+          listRefreshing
+            ? "pointer-events-none opacity-60 transition-opacity"
+            : "transition-opacity"
+        }
+      >
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 xl:gap-6">
         <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
           <h2 className="mb-4 text-base font-semibold text-gray-800 dark:text-white/90">
@@ -397,13 +447,32 @@ export default function StatistiquesPage() {
           )}
         </div>
       </div>
+      </div>
+      )}
 
+      {showPageSkeleton ? (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 xl:gap-6">
+          <div className="lg:col-span-5">
+            <ChartCardSkeleton tall />
+          </div>
+          <div className="lg:col-span-7">
+            <ChartCardSkeleton />
+          </div>
+        </div>
+      ) : (
+      <div
+        className={
+          listRefreshing
+            ? "pointer-events-none opacity-60 transition-opacity"
+            : "transition-opacity"
+        }
+      >
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 xl:gap-6">
         <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6 lg:col-span-5">
           <h2 className="mb-4 text-base font-semibold text-gray-800 dark:text-white/90">
             {apiMode ? "Répartition par statut compte" : "Répartition par catégorie"}
           </h2>
-          {apiMode && repartitionStatut.length === 0 ? (
+          {apiMode && !loading && repartitionStatut.length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Aucune donnée disponible.
             </p>
@@ -422,39 +491,43 @@ export default function StatistiquesPage() {
               ? "Inscriptions — tendance"
               : "Abonnements — nouveaux vs renouvellements"}
           </h2>
-          {apiMode && inscriptionsSeries.length === 0 ? (
+          {apiMode && !loading && inscriptionsSeries.length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">
               Aucune inscription sur la période.
             </p>
           ) : (
             <ReactApexChart
               options={aboOptions}
-              series={
-                showMock
-                  ? [
-                      {
-                        name: "Nouveaux",
-                        data: mockAbonnementsChart.map((d) => d.nouveaux),
-                      },
-                      {
-                        name: "Renouvellements",
-                        data: mockAbonnementsChart.map((d) => d.renouvellements),
-                      },
-                    ]
-                  : [
-                      {
-                        name: "Inscriptions",
-                        data: inscriptionsSeries.map((d) => d.count),
-                      },
-                    ]
-              }
+              series={[
+                {
+                  name: "Inscriptions",
+                  data: inscriptionsSeries.map((d) => d.count),
+                },
+              ]}
               type="line"
               height={280}
             />
           )}
         </div>
       </div>
+      </div>
+      )}
 
+      {showPageSkeleton ? (
+        <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
+          <TextSkeleton className="h-5 w-56" />
+          <div className="mt-4">
+            <StatsTableSkeleton cols={apiMode ? 6 : 3} />
+          </div>
+        </div>
+      ) : (
+      <div
+        className={
+          listRefreshing
+            ? "pointer-events-none opacity-60 transition-opacity"
+            : "transition-opacity"
+        }
+      >
       <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-base font-semibold text-gray-800 dark:text-white/90">
@@ -510,18 +583,7 @@ export default function StatistiquesPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(showMock
-                ? mockTopLivres.map((l, i) => ({
-                    id: `m-${i}`,
-                    titre: l.titre,
-                    nbLectures: l.lectures,
-                    nbTerminees: 0,
-                    noteMoyenne: null,
-                    nbNotes: 0,
-                    nbLectures7j: 0,
-                  }))
-                : topLivres
-              ).map((l, i) => (
+              {topLivres.map((l, i) => (
                 <TableRow key={l.id}>
                   <TableCell className="px-4 py-3 text-theme-sm text-gray-600">{i + 1}</TableCell>
                   <TableCell className="px-4 py-3 text-theme-sm font-medium text-gray-800 dark:text-white/90">
@@ -547,15 +609,50 @@ export default function StatistiquesPage() {
               ))}
             </TableBody>
           </Table>
-          {apiMode && topLivres.length === 0 && (
+          {apiMode && !loading && topLivres.length === 0 && (
             <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
               Aucune statistique livre disponible.
             </p>
           )}
         </div>
       </div>
+      </div>
+      )}
 
-      {apiMode && (
+      {apiMode && showPageSkeleton && (
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 xl:gap-6">
+          <div className="lg:col-span-8">
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
+              <TextSkeleton className="h-5 w-44" />
+              <div className="mt-4">
+                <StatsTableSkeleton cols={4} />
+              </div>
+            </div>
+          </div>
+          <div className="lg:col-span-4">
+            <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
+              <TextSkeleton className="h-5 w-40" />
+              <div className="mt-4 space-y-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="flex justify-between">
+                    <TextSkeleton className="h-4 w-24" />
+                    <TextSkeleton className="h-4 w-10" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {apiMode && !showPageSkeleton && (
+        <div
+          className={
+            listRefreshing
+              ? "pointer-events-none opacity-60 transition-opacity"
+              : "transition-opacity"
+          }
+        >
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 xl:gap-6">
           <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6 lg:col-span-8">
             <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -623,7 +720,7 @@ export default function StatistiquesPage() {
                   ))}
                 </TableBody>
               </Table>
-              {termesRecherche.data.length === 0 && (
+              {termesRecherche.data.length === 0 && !loading && (
                 <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
                   Aucun terme sur la période.
                 </p>
@@ -650,12 +747,13 @@ export default function StatistiquesPage() {
                 </li>
               ))}
             </ul>
-            {termesRecherche.topSansResultats.length === 0 && (
+            {termesRecherche.topSansResultats.length === 0 && !loading && (
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Aucune recherche sans résultat sur la période.
               </p>
             )}
           </div>
+        </div>
         </div>
       )}
     </div>

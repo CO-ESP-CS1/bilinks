@@ -1,10 +1,9 @@
-﻿import {
-  mockLivres,
-  type MockLivre,
-  type StatutLivre,
-} from "@/lib/mock-data";
+﻿import type { MockLivre, StatutLivre } from "@/lib/mock-data";
 import { mapAdminBookToMockLivre } from "@/lib/api/adapters";
-import { isAdminListApiReady, isDemoDataOnly } from "@/lib/api/admin-list-fetch";
+import {
+  API_REQUIRED_MESSAGE,
+  isAdminListApiReady,
+} from "@/lib/api/admin-list-fetch";
 import { apiRequest, isApiConfigured } from "@/lib/api/client";
 import type {
   AdminBookArchiveResponse,
@@ -85,27 +84,14 @@ function writeLivres(livres: MockLivre[]): void {
 
 function setCache(livres: MockLivre[]): void {
   apiCache = livres;
-  writeLivres(livres);
 }
 
 export function ensureLivres(): MockLivre[] {
-  if (!isDemoDataOnly()) {
-    return apiCache ?? readLivres();
-  }
-  if (apiCache?.length) return apiCache;
-  let livres = readLivres();
-  if (livres.length === 0) {
-    livres = mockLivres.map((l) => ({ ...l }));
-    writeLivres(livres);
-  }
-  return livres;
+  return apiCache ?? [];
 }
 
 export function getAllLivres(): MockLivre[] {
-  if (!isDemoDataOnly()) {
-    return apiCache ?? readLivres();
-  }
-  return apiCache ?? ensureLivres();
+  return apiCache ?? [];
 }
 
 export function getLivreById(id: string): MockLivre | null {
@@ -326,8 +312,7 @@ export async function fetchLivres(
   options?: FetchLivresOptions
 ): Promise<FetchLivresResult> {
   if (!isApiConfigured()) {
-    const livres = ensureLivres();
-    return { livres, meta: null };
+    return { livres: [], meta: null };
   }
   if (!isAdminListApiReady()) {
     return { livres: [], meta: null };
@@ -376,19 +361,23 @@ export async function createLivrePersisted(
     return { ok: false, error: validationError };
   }
 
+  if (!apiMode) {
+    return { ok: false, error: API_REQUIRED_MESSAGE };
+  }
+
   const typeLivre = input.type_livre ?? "INTERNE";
 
-  if (apiMode) {
-    try {
+  try {
       const form = buildBookFormData({
         titre: input.titre,
-        langue: input.langue ?? "",
+        langue: input.langue?.trim() || "Français",
         type_livre: typeLivre,
         url_externe_livre: input.urlExterneLivre,
         anneePublication: input.anneePublication,
         nombrePages: input.nombrePages,
         isbn: input.isbn,
         resume: input.resume,
+        maison_edition: input.maisonEdition,
         fichier: input.fichier,
         couvertureFile: input.couvertureFile,
         is_downloadable: input.is_downloadable,
@@ -460,6 +449,7 @@ export async function createLivrePersisted(
               ? (input.is_downloadable ?? false)
               : false,
           isbn: input.isbn ?? null,
+          maisonEdition: input.maisonEdition ?? null,
           anneePublication: input.anneePublication ?? 0,
           nombrePages: input.nombrePages ?? 0,
           statut: created.statut,
@@ -474,30 +464,6 @@ export async function createLivrePersisted(
         error: messageFromApiError(err, "Création livre impossible."),
       };
     }
-  }
-
-  const auteurNames = input.auteurIds
-    .map((aid) => getAuteurById(aid))
-    .filter((a): a is NonNullable<typeof a> => a != null)
-    .map((a) => `${a.prenom} ${a.nom}`.trim())
-    .filter(Boolean);
-  const livre = createLivre({
-    titre: input.titre,
-    auteurs: auteurNames.length > 0 ? auteurNames : input.auteurIds,
-    langue: input.langue ?? "—",
-    anneePublication: input.anneePublication,
-    nombrePages: input.nombrePages,
-  });
-  return {
-    ok: true,
-    livre,
-    created: {
-      id: livre.id,
-      titre: livre.titre,
-      type_livre: input.type_livre ?? "INTERNE",
-      statut: livre.statut,
-    },
-  };
 }
 
 export async function updateLivrePersisted(
@@ -507,13 +473,16 @@ export async function updateLivrePersisted(
   | { ok: true; livre: MockLivre; updated: AdminBookUpdateResponse }
   | { ok: false; error: string }
 > {
-  if (isApiConfigured()) {
-    const validationError = validateUpdateBookInput(patch);
-    if (validationError) {
-      return { ok: false, error: validationError };
-    }
+  if (!isApiConfigured()) {
+    return { ok: false, error: API_REQUIRED_MESSAGE };
+  }
 
-    try {
+  const validationError = validateUpdateBookInput(patch);
+  if (validationError) {
+    return { ok: false, error: validationError };
+  }
+
+  try {
       const typeLivre: TypeLivre = patch.type_livre;
       const form = buildUpdateBookFormData({
         titre: patch.titre,
@@ -524,6 +493,7 @@ export async function updateLivrePersisted(
         nombrePages: patch.nombrePages,
         isbn: patch.isbn,
         resume: patch.resume,
+        maison_edition: patch.maisonEdition,
         fichier: patch.fichier,
         couvertureFile: patch.couvertureFile,
         is_downloadable: patch.is_downloadable,
@@ -590,21 +560,6 @@ export async function updateLivrePersisted(
         error: messageFromApiError(err, "Mise à jour livre impossible."),
       };
     }
-  }
-
-  const local = updateLivre(id, {
-    titre: patch.titre,
-    langue: patch.langue,
-    anneePublication: patch.anneePublication ?? undefined,
-    nombrePages: patch.nombrePages ?? undefined,
-    statut: patch.statut,
-  });
-  if (!local) return { ok: false, error: "Livre introuvable." };
-  return {
-    ok: true,
-    livre: local,
-    updated: { id: local.id, updatedAt: new Date().toISOString() },
-  };
 }
 
 export async function archiveLivrePersisted(
@@ -613,28 +568,25 @@ export async function archiveLivrePersisted(
   | { ok: true; id: string; statut: StatutLivre }
   | { ok: false; error: string }
 > {
-  if (isApiConfigured()) {
-    try {
-      const res = await apiRequest<AdminBookArchiveResponse>(
-        ADMIN_ROUTES.books.archive(id),
-        { method: "PATCH" }
-      );
-      const statut: StatutLivre = res.statut === "PUBLIE" ? "PUBLIE" : "ARCHIVE";
-      const next = getAllLivres().map((l) =>
-        l.id === id ? { ...l, statut } : l
-      );
-      setCache(next);
-      return { ok: true, id: res.id, statut };
-    } catch (err) {
-      return {
-        ok: false,
-        error: messageFromApiError(err, "Archivage livre impossible."),
-      };
-    }
+  if (!isApiConfigured()) {
+    return { ok: false, error: API_REQUIRED_MESSAGE };
   }
 
-  if (!archiveLivre(id)) {
-    return { ok: false, error: "Livre introuvable." };
+  try {
+    const res = await apiRequest<AdminBookArchiveResponse>(
+      ADMIN_ROUTES.books.archive(id),
+      { method: "PATCH" }
+    );
+    const statut: StatutLivre = res.statut === "PUBLIE" ? "PUBLIE" : "ARCHIVE";
+    const next = getAllLivres().map((l) =>
+      l.id === id ? { ...l, statut } : l
+    );
+    setCache(next);
+    return { ok: true, id: res.id, statut };
+  } catch (err) {
+    return {
+      ok: false,
+      error: messageFromApiError(err, "Archivage livre impossible."),
+    };
   }
-  return { ok: true, id, statut: "ARCHIVE" };
 }

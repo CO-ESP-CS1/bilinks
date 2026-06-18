@@ -56,6 +56,7 @@ import {
 } from "@/lib/admin/validators";
 import { isSoftDeleted } from "@/lib/soft-delete";
 import { BoltIcon, GroupIcon, PencilIcon, TrashBinIcon } from "@/icons";
+import { useAdminPageSearch } from "@/context/AdminPageSearchContext";
 
 type Onglet = "defis" | "badges";
 type FiltreDefi = "tous" | StatutDefi | "ANNULE";
@@ -217,6 +218,7 @@ function DefiForm({
   onSubmit,
   onCancel,
   submitLabel,
+  submitting = false,
 }: {
   initial?: MockDefi;
   badges: MockBadge[];
@@ -233,9 +235,10 @@ function DefiForm({
       auteurId?: string;
       livreId?: string;
     }
-  ) => void;
+  ) => void | Promise<void>;
   onCancel: () => void;
   submitLabel: string;
+  submitting?: boolean;
 }) {
   const [form, setForm] = useState<DefiFormState>(() =>
     initial ? defiToForm(initial) : defaultDefiForm()
@@ -243,6 +246,7 @@ function DefiForm({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
     if (!form.titre.trim()) {
       toast.error("Le titre est obligatoire.");
       return;
@@ -538,14 +542,41 @@ function DefiForm({
         </div>
       </div>
       <div className="flex justify-end gap-2 border-t border-gray-100 pt-4 dark:border-gray-800">
-        <Button variant="outline" onClick={onCancel}>
-          Annuler
+        <Button variant="outline" disabled={submitting} onClick={onCancel}>
+          {submitting ? "Patientez…" : "Annuler"}
         </Button>
         <button
           type="submit"
-          className="inline-flex items-center justify-center rounded-lg bg-brand-500 px-5 py-3.5 text-sm font-medium text-white hover:bg-brand-600"
+          disabled={submitting}
+          className="inline-flex min-w-[9rem] items-center justify-center gap-2 rounded-lg bg-brand-500 px-5 py-3.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {submitLabel}
+          {submitting ? (
+            <>
+              <svg
+                className="h-4 w-4 animate-spin"
+                fill="none"
+                viewBox="0 0 24 24"
+                aria-hidden
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                />
+              </svg>
+              Enregistrement…
+            </>
+          ) : (
+            submitLabel
+          )}
         </button>
       </div>
     </form>
@@ -559,10 +590,13 @@ export default function DefisPage() {
   const [defis, setDefis] = useState<MockDefi[]>([]);
   const [badges, setBadges] = useState<MockBadge[]>([]);
   const [filtreStatut, setFiltreStatut] = useState<FiltreDefi>("tous");
-  const [search, setSearch] = useState("");
-  const [champRechercheKey, setChampRechercheKey] = useState(0);
+  const { query: search, setQuery: setSearch } = useAdminPageSearch({
+    placeholder: "Rechercher par titre ou description…",
+    enabled: onglet === "defis",
+  });
   const [modalDefi, setModalDefi] = useState<"creer" | "modifier" | null>(null);
   const [defiEdition, setDefiEdition] = useState<MockDefi | null>(null);
+  const [defiSubmitting, setDefiSubmitting] = useState(false);
   const [annulerCible, setAnnulerCible] = useState<MockDefi | null>(null);
   const [participantsCible, setParticipantsCible] = useState<MockDefi | null>(
     null
@@ -665,8 +699,7 @@ export default function DefisPage() {
   const reinitialiserFiltres = useCallback(() => {
     setFiltreStatut("tous");
     setSearch("");
-    setChampRechercheKey((k) => k + 1);
-  }, []);
+  }, [setSearch]);
 
   const listeDefis = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -712,53 +745,55 @@ export default function DefisPage() {
       livreId?: string;
     }
   ) => {
-    if (modalDefi === "modifier" && defiEdition) {
-      if (apiMode && defiEdition.statut !== "ACTIF") {
-        toast.error("Seuls les défis ACTIF peuvent être modifiés.");
-        return;
+    if (defiSubmitting) return;
+    setDefiSubmitting(true);
+    try {
+      if (modalDefi === "modifier" && defiEdition) {
+        if (apiMode && defiEdition.statut !== "ACTIF") {
+          toast.error("Seuls les défis ACTIF peuvent être modifiés.");
+          return;
+        }
+        const result = await updateChallengePersisted(defiEdition.id, {
+          titre: data.titre,
+          description: data.description,
+          date_fin: data.dateFin,
+          objectif_valeur: data.objectifValeur,
+        });
+        if (!result.ok) {
+          toast.error(result.error);
+          return;
+        }
+        toast.success(
+          apiMode && result.updatedAt
+            ? `Défi modifié (maj ${new Date(result.updatedAt).toLocaleString("fr-FR")}).`
+            : "Défi modifié."
+        );
+      } else {
+        const result = await createChallengePersisted({
+          titre: data.titre,
+          type: data.type,
+          objectif_valeur: data.objectifValeur,
+          badge_id: data.badgeId,
+          date_debut: data.dateDebut,
+          date_fin: data.dateFin,
+          description: data.description,
+          points_bonus: data.pointsRecompense,
+          categorie_id: data.categorieId,
+          auteur_id: data.auteurId,
+          livre_id: data.livreId,
+        });
+        if (!result.ok) {
+          toast.error(result.error);
+          return;
+        }
+        toast.success(apiMode ? "Défi créé avec succès." : "Défi créé.");
       }
-      const result = await updateChallengePersisted(defiEdition.id, {
-        titre: data.titre,
-        description: data.description,
-        date_fin: data.dateFin,
-        objectif_valeur: data.objectifValeur,
-      });
-      if (!result.ok) {
-        toast.error(result.error);
-        return;
-      }
-      toast.success(
-        apiMode && result.updatedAt
-          ? `Défi modifié (maj ${new Date(result.updatedAt).toLocaleString("fr-FR")}).`
-          : "Défi modifié."
-      );
-    } else {
-      const result = await createChallengePersisted({
-        titre: data.titre,
-        type: data.type,
-        objectif_valeur: data.objectifValeur,
-        badge_id: data.badgeId,
-        date_debut: data.dateDebut,
-        date_fin: data.dateFin,
-        description: data.description,
-        points_bonus: data.pointsRecompense,
-        categorie_id: data.categorieId,
-        auteur_id: data.auteurId,
-        livre_id: data.livreId,
-      });
-      if (!result.ok) {
-        toast.error(result.error);
-        return;
-      }
-      toast.success(
-        apiMode
-          ? "Défi créé avec succès."
-          : "Défi créé."
-      );
+      await refresh();
+      setModalDefi(null);
+      setDefiEdition(null);
+    } finally {
+      setDefiSubmitting(false);
     }
-    await refresh();
-    setModalDefi(null);
-    setDefiEdition(null);
   };
 
   return (
@@ -840,16 +875,6 @@ export default function DefisPage() {
       {onglet === "defis" && (
         <>
           <div className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-4 dark:border-white/[0.05] dark:bg-white/[0.03] lg:flex-row lg:items-end">
-            <div className="min-w-[200px] flex-1">
-              <Label htmlFor="search-defi">Rechercher</Label>
-              <Input
-                key={champRechercheKey}
-                id="search-defi"
-                type="text"
-                placeholder="Titre ou description…"
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
             <div className="w-full min-w-[140px] sm:w-44">
               <Label htmlFor="defi-statut-filtre">
                 Statut
@@ -1311,6 +1336,7 @@ export default function DefisPage() {
       <Modal
         isOpen={modalDefi != null}
         onClose={() => {
+          if (defiSubmitting) return;
           setModalDefi(null);
           setDefiEdition(null);
         }}
@@ -1328,11 +1354,13 @@ export default function DefisPage() {
           livres={livres}
           apiMode={apiMode}
           submitLabel="Enregistrer"
+          submitting={defiSubmitting}
           onCancel={() => {
+            if (defiSubmitting) return;
             setModalDefi(null);
             setDefiEdition(null);
           }}
-          onSubmit={(data) => void enregistrerDefi(data)}
+          onSubmit={(data) => enregistrerDefi(data)}
         />
       </Modal>
 

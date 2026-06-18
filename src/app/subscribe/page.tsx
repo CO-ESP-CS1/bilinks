@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Shield } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { PlanCard } from "@/components/subscribe/PlanCard";
+import { PoweredByPawapay } from "@/components/subscribe/PoweredByPawapay";
 import { StepIndicator } from "@/components/subscribe/StepIndicator";
 import { SubscribeLogo } from "@/components/subscribe/SubscribeLogo";
 import { SubscribePageSkeleton } from "@/components/subscribe/SubscribePageSkeleton";
@@ -76,7 +76,7 @@ export default function SubscribePage() {
           variants={staggerContainer}
           initial="hidden"
           animate="visible"
-          className="mx-auto mt-6 grid max-w-5xl grid-cols-1 gap-3 sm:mt-8 sm:gap-5 md:grid-cols-2 md:gap-6 lg:grid-cols-3"
+          className="mx-auto mt-6 grid max-w-3xl grid-cols-1 gap-3 sm:mt-8 sm:gap-5 md:grid-cols-2 md:gap-6"
         >
           {plans.map((plan) => (
             <motion.div key={plan.id} variants={fadeUp} className="flex">
@@ -89,10 +89,9 @@ export default function SubscribePage() {
           ))}
         </motion.div>
 
-        <p className="mt-8 flex items-center justify-center gap-1.5 text-xs text-zinc-400 sm:text-sm">
-          <Shield className="h-3.5 w-3.5 shrink-0" />
-          Paiement 100% sécurisé · MTN MoMo &amp; Airtel Money
-        </p>
+        <div className="mt-8">
+          <PoweredByPawapay />
+        </div>
         <p className="mb-4 mt-2 text-center text-xs text-zinc-300">
           Conditions · Confidentialité
         </p>

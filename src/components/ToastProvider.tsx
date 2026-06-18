@@ -5,7 +5,8 @@ import { Toaster } from "react-hot-toast";
 export function ToastProvider() {
   return (
     <Toaster
-      position="bottom-right"
+      position="top-center"
+      containerStyle={{ zIndex: 100001 }}
       toastOptions={{
         duration: 3500,
         className: "dark:bg-gray-800 dark:text-white",

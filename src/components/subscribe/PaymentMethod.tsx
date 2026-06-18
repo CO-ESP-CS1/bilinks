@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ChevronDown, ChevronUp, Info } from "lucide-react";
 import { cn } from "@/lib/cn";
 import type { PaymentProvider } from "@/lib/subscribe/plans";
-import { PhoneInput } from "@/components/subscribe/PhoneInput";
+import { PhoneInput, getCongoPhoneProviderError } from "@/components/subscribe/PhoneInput";
 
 type PaymentMethodProps = {
   provider: PaymentProvider;
@@ -29,6 +29,9 @@ export function PaymentMethod({
   onSelect,
   onPhoneChange,
 }: PaymentMethodProps) {
+  const inputProvider = provider === "MTN" ? "MTN" : "AIRTEL";
+  const phoneError = getCongoPhoneProviderError(phone, inputProvider);
+
   return (
     <div
       className={cn(
@@ -67,11 +70,17 @@ export function PaymentMethod({
             className="overflow-hidden"
           >
             <div className="mt-3 border-t border-zinc-100 pt-3">
-              <PhoneInput value={phone} onChange={onPhoneChange} provider={provider === "MTN" ? "MTN" : "AIRTEL"} />
+              <PhoneInput value={phone} onChange={onPhoneChange} provider={inputProvider} />
+              {phoneError ? (
+                <p className="mt-2 text-xs text-red-500">{phoneError}</p>
+              ) : (
               <p className="mt-2 flex items-center gap-1 text-xs text-zinc-400">
                 <Info className="h-3.5 w-3.5 shrink-0" />
-                Vous recevrez une notification {provider === "MTN" ? "MTN MoMo" : "Airtel Money"}
+                {provider === "MTN"
+                  ? "Numéro MTN Mobile Money — commence par 06"
+                  : "Numéro Airtel Money — commence par 05"}
               </p>
+              )}
             </div>
           </motion.div>
         )}

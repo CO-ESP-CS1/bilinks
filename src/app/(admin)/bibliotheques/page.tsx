@@ -11,12 +11,10 @@ import type {
 } from "@/lib/mock-data";
 import { isApiConfigured } from "@/lib/api/client";
 import {
-  addBooksToLibraryPersisted,
   archiveLibraryPersisted,
   unarchiveLibraryPersisted,
   createLibraryPersisted,
   fetchLibrariesPersisted,
-  removeBookFromLibraryPersisted,
   updateLibraryPersisted,
 } from "@/lib/libraries-store";
 import type { StatutBibliotheque } from "@/types/admin";
@@ -28,142 +26,11 @@ import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import TextArea from "@/components/form/input/TextArea";
 import Radio from "@/components/form/input/Radio";
+import { useAdminPageSearch } from "@/context/AdminPageSearchContext";
 import { PencilIcon, ArrowRightIcon, FolderIcon } from "@/icons";
 
 function formatLivres(n: number): string {
   return `${new Intl.NumberFormat("fr-FR").format(n)} livre${n > 1 ? "s" : ""}`;
-}
-
-function parseLivreIdsInput(raw: string): string[] {
-  return [...new Set(raw.split(/[,;\s]+/).map((s) => s.trim()).filter(Boolean))];
-}
-
-function AssocierLivresBibliotheque({
-  bibliothequeId,
-  bibliothequeNom,
-  onDone,
-}: {
-  bibliothequeId: string;
-  bibliothequeNom: string;
-  onDone: () => void;
-}) {
-  const [livreIdsRaw, setLivreIdsRaw] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  const handleAdd = async () => {
-    const livreIds = parseLivreIdsInput(livreIdsRaw);
-    if (!livreIds.length) {
-      toast.error("Saisissez au moins un UUID de livre.");
-      return;
-    }
-    setSubmitting(true);
-    const result = await addBooksToLibraryPersisted(bibliothequeId, livreIds);
-    setSubmitting(false);
-    if (!result.ok) {
-      toast.error(result.error);
-      return;
-    }
-    const msg =
-      result.added === 0
-        ? `Aucun nouveau livre ajouté à « ${bibliothequeNom} » (doublons ignorés).`
-        : `${result.added} livre${result.added > 1 ? "s" : ""} associé${result.added > 1 ? "s" : ""} à « ${bibliothequeNom} ».`;
-    toast.success(msg);
-    setLivreIdsRaw("");
-    onDone();
-  };
-
-  return (
-    <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50/80 p-3 dark:border-gray-800 dark:bg-white/[0.02]">
-      <p className="text-xs font-medium text-gray-600 dark:text-gray-400">
-        Associer des livres — bibliothèques internes uniquement
-      </p>
-      <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end">
-        <div className="min-w-0 flex-1">
-          <Label htmlFor={`associer-livre-${bibliothequeId}`} className="sr-only">
-            UUID(s) des livres
-          </Label>
-          <Input
-            id={`associer-livre-${bibliothequeId}`}
-            type="text"
-            placeholder="UUID livre(s), séparés par virgule…"
-            value={livreIdsRaw}
-            onChange={(e) => setLivreIdsRaw(e.target.value)}
-          />
-        </div>
-        <button
-          type="button"
-          disabled={submitting}
-          onClick={() => void handleAdd()}
-          className="shrink-0 rounded-lg border border-brand-500/40 px-3 py-2 text-xs font-medium text-brand-600 hover:bg-brand-500/10 disabled:opacity-50 dark:text-brand-400"
-        >
-          {submitting ? "Association…" : "Associer"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function RetirerLivreBibliotheque({
-  bibliothequeId,
-  bibliothequeNom,
-  onDone,
-}: {
-  bibliothequeId: string;
-  bibliothequeNom: string;
-  onDone: () => void;
-}) {
-  const [bookId, setBookId] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-
-  const handleRemove = async () => {
-    if (!bookId.trim()) {
-      toast.error("Saisissez l’identifiant UUID du livre.");
-      return;
-    }
-    setSubmitting(true);
-    const result = await removeBookFromLibraryPersisted(
-      bibliothequeId,
-      bookId.trim()
-    );
-    setSubmitting(false);
-    if (!result.ok) {
-      toast.error(result.error);
-      return;
-    }
-    toast.success(result.message || `Livre retiré de « ${bibliothequeNom} ».`);
-    setBookId("");
-    onDone();
-  };
-
-  return (
-    <div className="mt-3 rounded-lg border border-gray-100 bg-gray-50/80 p-3 dark:border-gray-800 dark:bg-white/[0.02]">
-      <p className="text-xs font-medium text-gray-600 dark:text-gray-400">
-        Retirer un livre de cette bibliothèque
-      </p>
-      <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end">
-        <div className="min-w-0 flex-1">
-          <Label htmlFor={`retirer-livre-${bibliothequeId}`} className="sr-only">
-            UUID du livre
-          </Label>
-          <Input
-            id={`retirer-livre-${bibliothequeId}`}
-            type="text"
-            placeholder="UUID du livre…"
-            value={bookId}
-            onChange={(e) => setBookId(e.target.value)}
-          />
-        </div>
-        <button
-          type="button"
-          disabled={submitting}
-          onClick={() => void handleRemove()}
-          className="shrink-0 rounded-lg border border-error-500/40 px-3 py-2 text-xs font-medium text-error-600 hover:bg-error-500/10 disabled:opacity-50 dark:text-error-400"
-        >
-          {submitting ? "Retrait…" : "Retirer"}
-        </button>
-      </div>
-    </div>
-  );
 }
 
 function IconeLienExterne({ className }: { className?: string }) {
@@ -408,10 +275,11 @@ export default function BibliothequesPage() {
   const apiMode = isApiConfigured();
   const [bibliotheques, setBibliotheques] = useState<MockBibliotheque[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
+  const { query: search, setQuery: setSearch } = useAdminPageSearch({
+    placeholder: "Rechercher par nom ou description…",
+  });
   const [filtreStatut, setFiltreStatut] = useState<"" | StatutBibliotheque>("");
   const [filtreType, setFiltreType] = useState<"" | TypeBibliotheque>("");
-  const [champRechercheKey, setChampRechercheKey] = useState(0);
   const [modalMode, setModalMode] = useState<"ajouter" | "modifier" | null>(null);
   const [edition, setEdition] = useState<MockBibliotheque | null>(null);
   const [archiveCible, setArchiveCible] = useState<MockBibliotheque | null>(
@@ -441,8 +309,7 @@ export default function BibliothequesPage() {
     setSearch("");
     setFiltreStatut("");
     setFiltreType("");
-    setChampRechercheKey((k) => k + 1);
-  }, []);
+  }, [setSearch]);
 
   const listeFiltree = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -544,17 +411,6 @@ export default function BibliothequesPage() {
       </div>
 
       <div className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-4 dark:border-white/[0.05] dark:bg-white/[0.03] lg:flex-row lg:items-end">
-        <div className="min-w-[200px] flex-1">
-          <Label htmlFor="search-bib">Rechercher (local)</Label>
-          <Input
-            key={champRechercheKey}
-            id="search-bib"
-            type="text"
-            placeholder="Nom ou description…"
-            className="mt-2"
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
         <div className="w-full min-w-[140px] sm:w-44">
           <Label htmlFor="bib-filtre-statut">Statut</Label>
           <select
@@ -656,20 +512,6 @@ export default function BibliothequesPage() {
                       Gérer les livres
                       <ArrowRightIcon className="size-4" />
                     </Link>
-                    {apiMode && b.statut === "ACTIVE" && (
-                      <>
-                        <AssocierLivresBibliotheque
-                          bibliothequeId={b.id}
-                          bibliothequeNom={b.nom}
-                          onDone={() => void refresh()}
-                        />
-                        <RetirerLivreBibliotheque
-                          bibliothequeId={b.id}
-                          bibliothequeNom={b.nom}
-                          onDone={() => void refresh()}
-                        />
-                      </>
-                    )}
                   </div>
                 )}
 

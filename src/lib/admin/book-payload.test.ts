@@ -187,4 +187,15 @@ describe("buildBookFormData", () => {
     const fields = readBookFormFields(form);
     expect(fields.is_downloadable).toBe("true");
   });
+
+  it("utilise Français par défaut si langue absente", () => {
+    const file = new File(["x"], "book.pdf", { type: "application/pdf" });
+    const form = buildBookFormData({
+      titre: "Mon livre",
+      langue: "",
+      type_livre: "INTERNE",
+      fichier: file,
+    });
+    expect(readBookFormFields(form).langue).toBe("Français");
+  });
 });

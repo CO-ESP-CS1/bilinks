@@ -5,6 +5,9 @@ import {
   mockTopLivres,
 } from "@/lib/mock-data";
 import type {
+  AdminStatsActivityItemApi,
+  AdminStatsActivityPeriode,
+  AdminStatsActivityResponse,
   AdminStatsBookItemApi,
   AdminStatsBooksResponse,
   AdminStatsBooksSort,
@@ -14,11 +17,12 @@ import type {
   AdminStatsUsersPeriode,
 } from "@/lib/api/admin-types";
 import {
+  buildStatsActivityQuery,
   buildStatsBooksQuery,
   buildStatsSearchTermsQuery,
   buildStatsUsersQuery,
 } from "@/lib/admin/validators";
-import { isAdminListApiReady } from "@/lib/api/admin-list-fetch";
+import { isAdminListApiReady , API_REQUIRED_MESSAGE } from "@/lib/api/admin-list-fetch";
 import { apiRequest, isApiConfigured } from "@/lib/api/client";
 import { messageFromApiError, SESSION_REQUIRED_MESSAGE } from "@/lib/api/errors";
 import {
@@ -217,7 +221,11 @@ function mapDashboard(api: AdminStatsDashboardApi): DashboardView {
  */
 export async function fetchDashboardStats(): Promise<DashboardFetchResult> {
   if (!isApiConfigured()) {
-    return { data: fallbackDashboard(), source: "mock" };
+    return {
+      data: emptyDashboard(),
+      source: "unavailable",
+      error: API_REQUIRED_MESSAGE,
+    };
   }
 
   if (!isAdminListApiReady()) {
@@ -246,6 +254,100 @@ export type DashboardAlerts = {
   paiementsEnAttente: number;
   commentairesAModerer: number;
 };
+
+export type DashboardActivityItem = {
+  id: string;
+  type: "inscription" | "paiement";
+  message: string;
+  temps: string;
+  statutPaiement?: string;
+};
+
+function formatRelativeTimeFr(iso: string): string {
+  const date = new Date(iso);
+  const now = Date.now();
+  const diffMs = now - date.getTime();
+  if (diffMs < 0) {
+    return new Intl.DateTimeFormat("fr-FR", {
+      dateStyle: "short",
+      timeStyle: "short",
+    }).format(date);
+  }
+  const diffMin = Math.floor(diffMs / 60_000);
+  if (diffMin < 1) return "À l'instant";
+  if (diffMin < 60) return `Il y a ${diffMin} min`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `Il y a ${diffH}h`;
+  const diffD = Math.floor(diffH / 24);
+  if (diffD === 1) return "Hier";
+  if (diffD < 7) return `Il y a ${diffD} jours`;
+  return new Intl.DateTimeFormat("fr-FR", {
+    dateStyle: "short",
+    timeStyle: "short",
+  }).format(date);
+}
+
+function displayNameFromActivity(row: AdminStatsActivityItemApi): string {
+  const name = [row.prenom, row.nom].filter(Boolean).join(" ").trim();
+  return name || row.email || "Utilisateur";
+}
+
+function mapActivityItem(row: AdminStatsActivityItemApi): DashboardActivityItem {
+  const name = displayNameFromActivity(row);
+  if (row.type === "INSCRIPTION") {
+    return {
+      id: `inscription-${row.auth_id}-${row.date}`,
+      type: "inscription",
+      message: `${name} s'est inscrit(e)`,
+      temps: formatRelativeTimeFr(row.date),
+    };
+  }
+
+  const montant = new Intl.NumberFormat("fr-FR").format(row.montant ?? 0);
+  const devise = row.devise ?? "XOF";
+  const operateur = row.operateur?.trim() || "Mobile Money";
+  const statut = row.statut ?? "EN_ATTENTE";
+  const statutLabel =
+    statut === "SUCCES"
+      ? "reçu"
+      : statut === "ECHEC"
+        ? "échoué"
+        : "en attente";
+
+  return {
+    id: `paiement-${row.id ?? row.date}`,
+    type: "paiement",
+    message: `Paiement ${operateur} ${statutLabel} — ${name} (${montant} ${devise})`,
+    temps: formatRelativeTimeFr(row.date),
+    statutPaiement: statut,
+  };
+}
+
+/**
+ * Activité récente dashboard — GET /admin/stats/activity.
+ */
+export async function fetchDashboardActivity(options?: {
+  periode?: AdminStatsActivityPeriode;
+  limit?: number;
+}): Promise<DashboardActivityItem[]> {
+  if (!isApiConfigured() || !isAdminListApiReady()) {
+    return [];
+  }
+
+  try {
+    const params = buildStatsActivityQuery({
+      periode: options?.periode ?? "7j",
+      page: 1,
+      limit: options?.limit ?? 10,
+    });
+    const payload = await apiRequest<AdminStatsActivityResponse>(
+      `${ADMIN_ROUTES.stats.activity}?${params.toString()}`
+    );
+    return unwrapListData<AdminStatsActivityItemApi>(payload).map(mapActivityItem);
+  } catch {
+    return [];
+  }
+}
 
 async function fetchListTotal(path: string, query: string): Promise<number> {
   const payload = await apiRequest<PaginatedResponse<unknown>>(
@@ -280,7 +382,7 @@ export async function fetchStatsUsers(
   periode: AdminStatsUsersPeriode = "30j"
 ): Promise<StatsUsersView> {
   if (!isApiConfigured()) {
-    return mockStatsUsersView();
+    return emptyStatsUsersView();
   }
   if (!isAdminListApiReady()) {
     return emptyStatsUsersView();
@@ -319,7 +421,7 @@ export async function fetchStatsBooks(options?: {
   limit?: number;
 }): Promise<StatsBooksFetchResult> {
   if (!isApiConfigured()) {
-    return { rows: mockStatsBookRows(), meta: null };
+    return { rows: [], meta: null };
   }
   if (!isAdminListApiReady()) {
     return { rows: [], meta: null };

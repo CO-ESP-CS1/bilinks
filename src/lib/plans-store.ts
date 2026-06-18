@@ -1,4 +1,4 @@
-﻿import { mockPlans, type MockPlanTarifaire, type StatutPlanTarifaire } from "@/lib/mock-data";
+﻿import type { MockPlanTarifaire, StatutPlanTarifaire } from "@/lib/mock-data";
 import { mapAdminPlanToMockPlan } from "@/lib/api/adapters";
 import type {
   AdminPlanApi,
@@ -9,7 +9,7 @@ import type {
 import { apiRequest, isApiConfigured } from "@/lib/api/client";
 import { messageFromApiError, SESSION_REQUIRED_MESSAGE } from "@/lib/api/errors";
 import { unwrapListData } from "@/lib/api/pagination";
-import { isAdminListApiReady } from "@/lib/api/admin-list-fetch";
+import { isAdminListApiReady , API_REQUIRED_MESSAGE } from "@/lib/api/admin-list-fetch";
 import { ADMIN_ROUTES } from "@/lib/api/routes";
 import { buildPlanCreateBody, buildPlanUpdateBody } from "@/lib/admin/validators";
 import { isSoftDeleted, softDeleteTimestamp } from "@/lib/soft-delete";
@@ -48,17 +48,10 @@ function writePlans(plans: MockPlanTarifaire[]): void {
 
 function setCache(plans: MockPlanTarifaire[]): void {
   apiCache = plans;
-  writePlans(plans);
 }
 
 export function ensurePlans(): MockPlanTarifaire[] {
-  if (apiCache?.length) return apiCache;
-  let plans = readPlans();
-  if (plans.length === 0) {
-    plans = mockPlans.map((p) => ({ ...p, deletedAt: p.deletedAt ?? null }));
-    writePlans(plans);
-  }
-  return plans;
+  return apiCache ?? [];
 }
 
 export function getAllPlans(includeDeleted = false): MockPlanTarifaire[] {
@@ -187,15 +180,7 @@ export async function createPlanPersisted(input: {
     }
   }
 
-  try {
-    const plan = createPlanLocal(input);
-    return { ok: true, plan };
-  } catch (err) {
-    return {
-      ok: false,
-      error: err instanceof Error ? err.message : "Création impossible.",
-    };
-  }
+  return { ok: false, error: API_REQUIRED_MESSAGE };
 }
 
 /**
@@ -245,9 +230,7 @@ export async function updatePlanPersisted(
     }
   }
 
-  const local = updatePlanLocal(id, patch);
-  if (!local) return { ok: false, error: "Plan introuvable." };
-  return { ok: true, plan: local };
+  return { ok: false, error: API_REQUIRED_MESSAGE };
 }
 
 export async function deletePlanPersisted(
@@ -258,15 +241,12 @@ export async function deletePlanPersisted(
     if (!result.ok) return result;
     return { ok: true };
   }
-  if (!deletePlanLocal(id)) {
-    return { ok: false, error: "Plan introuvable." };
-  }
-  return { ok: true };
+  return { ok: false, error: API_REQUIRED_MESSAGE };
 }
 
 /** @deprecated Utiliser deletePlanPersisted */
 export function deletePlan(id: string): boolean {
-  return deletePlanLocal(id);
+  return false;
 }
 
 function createPlanLocal(input: {

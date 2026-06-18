@@ -5,11 +5,78 @@ import toast from "react-hot-toast";
 import { Breadcrumb, adminCrumb } from "@/components/Breadcrumb";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
-import Button from "@/components/ui/button/Button";
+import { isApiConfigured } from "@/lib/api/client";
+import { changePasswordViaApi, hasApiSession } from "@/lib/api/session";
+
+type FormErr = Partial<
+  Record<"currentPassword" | "newPassword" | "confirmPassword", string>
+>;
 
 export default function AccountSettingsPage() {
-  const [langue, setLangue] = useState("fr");
-  const [fuseau, setFuseau] = useState("Africa/Brazzaville");
+  const apiMode = isApiConfigured();
+  const apiSessionReady = !apiMode || hasApiSession();
+
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [errors, setErrors] = useState<FormErr>({});
+  const [submitting, setSubmitting] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const next: FormErr = {};
+
+    if (!currentPassword.trim()) {
+      next.currentPassword = "Le mot de passe actuel est obligatoire.";
+    }
+    if (!newPassword.trim()) {
+      next.newPassword = "Le nouveau mot de passe est obligatoire.";
+    } else if (newPassword.length < 8) {
+      next.newPassword = "Le nouveau mot de passe doit contenir au moins 8 caractères.";
+    }
+    if (!confirmPassword.trim()) {
+      next.confirmPassword = "Confirmez le nouveau mot de passe.";
+    } else if (newPassword !== confirmPassword) {
+      next.confirmPassword = "Les mots de passe ne correspondent pas.";
+    }
+    if (
+      currentPassword &&
+      newPassword &&
+      currentPassword === newPassword
+    ) {
+      next.newPassword = "Le nouveau mot de passe doit être différent de l'actuel.";
+    }
+
+    setErrors(next);
+    if (Object.keys(next).length > 0) return;
+
+    if (!apiMode) {
+      toast.error("API non configurée — impossible de modifier le mot de passe.");
+      return;
+    }
+    if (!apiSessionReady) {
+      toast.error("Connectez-vous pour modifier votre mot de passe.");
+      return;
+    }
+
+    setSubmitting(true);
+    const result = await changePasswordViaApi({
+      currentPassword,
+      newPassword,
+    });
+    setSubmitting(false);
+
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    setErrors({});
+    toast.success("Mot de passe mis à jour avec succès.");
+  };
 
   return (
     <div className="space-y-8">
@@ -19,9 +86,26 @@ export default function AccountSettingsPage() {
           Paramètres du compte
         </h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Sécurité, préférences et session (données locales en démo).
+          Sécurité et session de votre compte administrateur.
         </p>
       </div>
+
+      {!apiMode && (
+        <div className="rounded-xl border border-warning-500/30 bg-warning-50 px-4 py-3 text-sm text-warning-800 dark:border-warning-500/20 dark:bg-warning-500/10 dark:text-warning-300">
+          Configurez{" "}
+          <code className="rounded bg-warning-100 px-1 dark:bg-warning-500/20">
+            NEXT_PUBLIC_API_BASE_URL
+          </code>{" "}
+          pour modifier le mot de passe via l&apos;API.
+        </div>
+      )}
+
+      {apiMode && !apiSessionReady && (
+        <div className="rounded-xl border border-warning-500/30 bg-warning-50 px-4 py-3 text-sm text-warning-800 dark:border-warning-500/20 dark:bg-warning-500/10 dark:text-warning-300">
+          Connectez-vous avec un compte <strong>ADMIN</strong> pour modifier votre
+          mot de passe.
+        </div>
+      )}
 
       <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
         <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">
@@ -32,10 +116,7 @@ export default function AccountSettingsPage() {
         </p>
         <form
           className="mt-6 grid max-w-lg grid-cols-1 gap-4"
-          onSubmit={(e) => {
-            e.preventDefault();
-            toast.success("Mot de passe mis à jour (simulation).");
-          }}
+          onSubmit={(e) => void handleSubmit(e)}
         >
           <div>
             <Label htmlFor="pwd-actuel">Mot de passe actuel</Label>
@@ -44,7 +125,14 @@ export default function AccountSettingsPage() {
               type="password"
               className="mt-2"
               placeholder="••••••••"
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              error={!!errors.currentPassword}
+              disabled={submitting}
             />
+            {errors.currentPassword && (
+              <p className="mt-1 text-sm text-error-500">{errors.currentPassword}</p>
+            )}
           </div>
           <div>
             <Label htmlFor="pwd-nouveau">Nouveau mot de passe</Label>
@@ -53,7 +141,15 @@ export default function AccountSettingsPage() {
               type="password"
               className="mt-2"
               placeholder="••••••••"
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              error={!!errors.newPassword}
+              disabled={submitting}
             />
+            {errors.newPassword && (
+              <p className="mt-1 text-sm text-error-500">{errors.newPassword}</p>
+            )}
+            <p className="mt-1 text-xs text-gray-400">8 caractères minimum.</p>
           </div>
           <div>
             <Label htmlFor="pwd-confirm">Confirmer</Label>
@@ -62,60 +158,25 @@ export default function AccountSettingsPage() {
               type="password"
               className="mt-2"
               placeholder="••••••••"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              error={!!errors.confirmPassword}
+              disabled={submitting}
             />
+            {errors.confirmPassword && (
+              <p className="mt-1 text-sm text-error-500">{errors.confirmPassword}</p>
+            )}
           </div>
           <div>
             <button
               type="submit"
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-5 py-3.5 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600"
+              disabled={submitting || !apiMode || !apiSessionReady}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-brand-500 px-5 py-3.5 text-sm font-medium text-white shadow-theme-xs transition hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Enregistrer le mot de passe
+              {submitting ? "Enregistrement…" : "Enregistrer le mot de passe"}
             </button>
           </div>
         </form>
-      </section>
-
-      <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
-        <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-          Préférences
-        </h2>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Langue d&apos;interface et fuseau horaire pour les rapports.
-        </p>
-        <div className="mt-6 grid max-w-lg grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <Label htmlFor="langue">Langue</Label>
-            <select
-              id="langue"
-              value={langue}
-              onChange={(e) => setLangue(e.target.value)}
-              className="mt-2 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-            >
-              <option value="fr">Français</option>
-              <option value="en">English</option>
-            </select>
-          </div>
-          <div>
-            <Label htmlFor="fuseau">Fuseau horaire</Label>
-            <select
-              id="fuseau"
-              value={fuseau}
-              onChange={(e) => setFuseau(e.target.value)}
-              className="mt-2 h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90"
-            >
-              <option value="Africa/Brazzaville">Africa/Brazzaville</option>
-              <option value="Africa/Kinshasa">Africa/Kinshasa</option>
-              <option value="Europe/Paris">Europe/Paris</option>
-            </select>
-          </div>
-        </div>
-        <div className="mt-6">
-          <Button
-            onClick={() => toast.success("Préférences enregistrées (simulation).")}
-          >
-            Enregistrer les préférences
-          </Button>
-        </div>
       </section>
 
       <section className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">

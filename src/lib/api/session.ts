@@ -128,3 +128,31 @@ export function hasApiSession(): boolean {
 export function logoutApiSession(): void {
   clearApiBearerToken();
 }
+
+export async function changePasswordViaApi(input: {
+  currentPassword: string;
+  newPassword: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!isApiConfigured()) {
+    return { ok: false, error: "API non configurée." };
+  }
+  if (!getApiBearerToken()) {
+    return { ok: false, error: "Connectez-vous pour modifier votre mot de passe." };
+  }
+
+  try {
+    await apiRequest<{ message: string }>(AUTH_ROUTES.changePassword, {
+      method: "POST",
+      body: JSON.stringify({
+        currentPassword: input.currentPassword,
+        newPassword: input.newPassword,
+      }),
+    });
+    return { ok: true };
+  } catch (err) {
+    return {
+      ok: false,
+      error: messageFromApiError(err, "Impossible de modifier le mot de passe."),
+    };
+  }
+}

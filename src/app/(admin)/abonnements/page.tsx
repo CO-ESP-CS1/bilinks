@@ -18,15 +18,16 @@ import {
   createPlanPersisted,
   deletePlanPersisted,
   fetchPlansPersisted,
-  getAllPlans,
   getPlanLabel,
   slugifyPlanCode,
   updatePlanPersisted,
 } from "@/lib/plans-store";
-import { isSoftDeleted, softDeleteTimestamp } from "@/lib/soft-delete";
+import { isSoftDeleted } from "@/lib/soft-delete";
 import {
+  activateSubscriptionPersisted,
   cancelSubscriptionPersisted,
   fetchSubscriptionsPersisted,
+  suspendSubscriptionPersisted,
 } from "@/lib/subscriptions-store";
 import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
@@ -61,23 +62,8 @@ function estDatePassee(dateFin: string): boolean {
   return fin < new Date();
 }
 
-function prixPlan(code: string, plans: MockPlanTarifaire[]): number {
-  return plans.find((p) => p.code === code)?.prix ?? 0;
-}
-
 const selectClass =
   "h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800";
-
-type AboFormState = {
-  utilisateurNom: string;
-  utilisateurEmail: string;
-  plan: string;
-  typeRenouvellement: TypeRenouvellement;
-  statut: StatutAbonnement;
-  dateDebut: string;
-  dateFin: string;
-  montant: string;
-};
 
 type PlanFormState = {
   nom: string;
@@ -95,28 +81,88 @@ const emptyPlanForm = (): PlanFormState => ({
   statut: "ACTIF",
 });
 
-function emptyAboForm(plans: MockPlanTarifaire[]): AboFormState {
-  const defaut =
-    plans.find((p) => p.code === "MENSUEL" && p.statut === "ACTIF") ??
-    plans.find((p) => p.statut === "ACTIF");
-  const code = defaut?.code ?? "MENSUEL";
-  return {
-    utilisateurNom: "",
-    utilisateurEmail: "",
-    plan: code,
-    typeRenouvellement: "NOUVEAU",
-    statut: "ACTIF",
-    dateDebut: new Date().toISOString().slice(0, 10),
-    dateFin: "",
-    montant: String(defaut?.prix ?? 1500),
-  };
-}
-
 type DialogCible =
-  | { type: "supprimer"; abo: MockAbonnement }
   | { type: "suspendre"; abo: MockAbonnement }
   | { type: "annuler"; abo: MockAbonnement }
+  | { type: "activer"; abo: MockAbonnement }
   | { type: "supprimerPlan"; plan: MockPlanTarifaire };
+
+function TextSkeleton({ className = "" }: { className?: string }) {
+  return (
+    <div
+      className={`animate-pulse rounded bg-gray-200 dark:bg-white/10 ${className}`}
+      aria-hidden
+    />
+  );
+}
+
+function PlansGridSkeleton() {
+  return (
+    <div
+      className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6 xl:grid-cols-3"
+      aria-busy="true"
+      aria-label="Chargement des plans tarifaires"
+    >
+      {Array.from({ length: 3 }).map((_, i) => (
+        <div
+          key={i}
+          className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/[0.03]"
+        >
+          <TextSkeleton className="h-6 w-32" />
+          <TextSkeleton className="mt-2 h-3 w-20" />
+          <TextSkeleton className="mt-4 h-8 w-28" />
+          <TextSkeleton className="mt-2 h-4 w-36" />
+          <TextSkeleton className="mt-4 h-4 w-40" />
+          <div className="mt-3 flex gap-2">
+            <TextSkeleton className="h-6 w-14 rounded-full" />
+            <TextSkeleton className="h-9 w-9 rounded-lg" />
+            <TextSkeleton className="h-9 w-9 rounded-lg" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function SubscriptionsTableSkeleton() {
+  return (
+    <div
+      className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]"
+      aria-busy="true"
+      aria-label="Chargement des abonnements"
+    >
+      <div className="max-w-full overflow-x-auto">
+        <div className="min-w-[1080px]">
+          <div className="flex gap-3 border-b border-gray-100 px-4 py-3 dark:border-white/[0.05]">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <TextSkeleton key={i} className="h-4 w-16" />
+            ))}
+          </div>
+          <div className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 px-4 py-3">
+                <div className="space-y-1">
+                  <TextSkeleton className="h-4 w-28" />
+                  <TextSkeleton className="h-3 w-36" />
+                </div>
+                <TextSkeleton className="h-4 w-20" />
+                <TextSkeleton className="h-6 w-16 rounded-full" />
+                <TextSkeleton className="h-6 w-14 rounded-full" />
+                <TextSkeleton className="h-4 w-20" />
+                <TextSkeleton className="h-4 w-20" />
+                <TextSkeleton className="h-4 w-16" />
+                <div className="flex gap-1">
+                  <TextSkeleton className="h-9 w-9 rounded-lg" />
+                  <TextSkeleton className="h-8 w-20 rounded-lg" />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function AbonnementsPage() {
   const [abonnements, setAbonnements] = useState<MockAbonnement[]>([]);
@@ -129,42 +175,58 @@ export default function AbonnementsPage() {
     "tous"
   );
   const [dialog, setDialog] = useState<DialogCible | null>(null);
-  const [modalAbo, setModalAbo] = useState<"ajouter" | "modifier" | null>(null);
-  const [aboEdition, setAboEdition] = useState<MockAbonnement | null>(null);
-  const [formAbo, setFormAbo] = useState<AboFormState>(() => emptyAboForm([]));
   const [modalPlan, setModalPlan] = useState<"creer" | "modifier" | null>(null);
   const [planEdition, setPlanEdition] = useState<MockPlanTarifaire | null>(null);
   const [formPlan, setFormPlan] = useState<PlanFormState>(emptyPlanForm);
   const [raisonAnnulation, setRaisonAnnulation] = useState("");
+  const [loadingPlans, setLoadingPlans] = useState(true);
+  const [loadingAbonnements, setLoadingAbonnements] = useState(true);
+  const [submittingPlan, setSubmittingPlan] = useState(false);
+  const [confirmingDialog, setConfirmingDialog] = useState(false);
 
   const apiMode = isApiConfigured();
 
+  const rafraichirPlans = useCallback(async () => {
+    setLoadingPlans(true);
+    try {
+      setPlans(await fetchPlansPersisted());
+    } finally {
+      setLoadingPlans(false);
+    }
+  }, []);
+
   const rafraichirAbonnements = useCallback(async () => {
     if (!apiMode) return;
-    const statut =
-      filtreStatut !== "tous" && filtreStatut !== "SUSPENDU"
-        ? filtreStatut
-        : undefined;
-    const plan =
-      filtrePlan !== "tous" ? (filtrePlan as PlanType) : undefined;
-    const rows = await fetchSubscriptionsPersisted({ statut, plan });
-    setAbonnements(rows);
+    setLoadingAbonnements(true);
+    try {
+      const statut =
+        filtreStatut !== "tous" ? filtreStatut : undefined;
+      const plan =
+        filtrePlan !== "tous" ? (filtrePlan as PlanType) : undefined;
+      const rows = await fetchSubscriptionsPersisted({ statut, plan });
+      setAbonnements(rows);
+    } finally {
+      setLoadingAbonnements(false);
+    }
   }, [apiMode, filtreStatut, filtrePlan]);
 
   React.useEffect(() => {
-    const load = async () => {
-      setPlans(await fetchPlansPersisted());
-      if (apiMode) {
-        await rafraichirAbonnements();
-      } else {
-        setAbonnements(await fetchSubscriptionsPersisted());
-      }
-    };
-    void load();
-  }, [apiMode, rafraichirAbonnements]);
+    void rafraichirPlans();
+  }, [rafraichirPlans]);
 
   React.useEffect(() => {
-    if (!apiMode) return;
+    if (!apiMode) {
+      const load = async () => {
+        setLoadingAbonnements(true);
+        try {
+          setAbonnements(await fetchSubscriptionsPersisted());
+        } finally {
+          setLoadingAbonnements(false);
+        }
+      };
+      void load();
+      return;
+    }
     void rafraichirAbonnements();
   }, [apiMode, rafraichirAbonnements, filtreStatut, filtrePlan]);
 
@@ -177,12 +239,6 @@ export default function AbonnementsPage() {
   const abonnementsActifs = useMemo(
     () => abonnements.filter((a) => !isSoftDeleted(a.deletedAt)),
     [abonnements]
-  );
-
-  const plansActifs = useMemo(
-    () =>
-      plans.filter((p) => p.statut === "ACTIF" && !isSoftDeleted(p.deletedAt)),
-    [plans]
   );
 
   const plansVisibles = useMemo(
@@ -214,15 +270,10 @@ export default function AbonnementsPage() {
     });
   }, [abonnementsActifs, filtreStatut, filtrePlan, filtreType, apiMode]);
 
-  const rafraichirPlans = useCallback(async () => {
-    setPlans(await fetchPlansPersisted());
-  }, []);
-
-  const ouvrirAjout = () => {
-    setAboEdition(null);
-    setFormAbo(emptyAboForm(plans));
-    setModalAbo("ajouter");
-  };
+  const showPlansSkeleton = loadingPlans && plans.length === 0;
+  const showSubsSkeleton = loadingAbonnements && abonnements.length === 0;
+  const listRefreshingSubs = loadingAbonnements && abonnements.length > 0;
+  const pageLoading = showPlansSkeleton || showSubsSkeleton;
 
   const ouvrirPlanCreer = () => {
     setPlanEdition(null);
@@ -242,58 +293,9 @@ export default function AbonnementsPage() {
     setModalPlan("modifier");
   };
 
-  const ouvrirModification = (a: MockAbonnement) => {
-    setAboEdition(a);
-    setFormAbo({
-      utilisateurNom: a.utilisateurNom,
-      utilisateurEmail: a.utilisateurEmail,
-      plan: a.plan,
-      typeRenouvellement: a.typeRenouvellement,
-      statut: a.statut,
-      dateDebut: a.dateDebut,
-      dateFin: a.dateFin,
-      montant: String(a.montant),
-    });
-    setModalAbo("modifier");
-  };
-
-  const enregistrerAbo = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formAbo.utilisateurNom.trim() || !formAbo.utilisateurEmail.trim()) {
-      toast.error("Nom et e-mail obligatoires.");
-      return;
-    }
-    const montant = Number(formAbo.montant) || prixPlan(formAbo.plan, plans);
-    const payload = {
-      utilisateurNom: formAbo.utilisateurNom.trim(),
-      utilisateurEmail: formAbo.utilisateurEmail.trim(),
-      plan: formAbo.plan,
-      typeRenouvellement: formAbo.typeRenouvellement,
-      statut: formAbo.statut,
-      dateDebut: formAbo.dateDebut,
-      dateFin: formAbo.dateFin || formAbo.dateDebut,
-      montant,
-    };
-    if (modalAbo === "modifier" && aboEdition) {
-      setAbonnements((prev) =>
-        prev.map((row) =>
-          row.id === aboEdition.id ? { ...row, ...payload } : row
-        )
-      );
-      toast.success("Abonnement modifié.");
-    } else {
-      setAbonnements((prev) => [
-        { id: `ab-${Date.now()}`, ...payload, deletedAt: null },
-        ...prev,
-      ]);
-      toast.success("Abonnement ajouté.");
-    }
-    setModalAbo(null);
-    setAboEdition(null);
-  };
-
   const confirmerDialog = async () => {
-    if (!dialog) return;
+    if (!dialog || confirmingDialog) return;
+
     if (dialog.type === "supprimerPlan") {
       const { plan } = dialog;
       const abonnesActifs = nbParPlan[plan.code] ?? 0;
@@ -304,7 +306,8 @@ export default function AbonnementsPage() {
         setDialog(null);
         return;
       }
-      void (async () => {
+      setConfirmingDialog(true);
+      try {
         const result = await deletePlanPersisted(plan.id);
         if (!result.ok) {
           toast.error(result.error);
@@ -316,51 +319,70 @@ export default function AbonnementsPage() {
             ? `Plan « ${plan.nom} » passé en INACTIF.`
             : `Plan « ${plan.nom} » supprimé (soft delete).`
         );
-      })();
-      setDialog(null);
+        setDialog(null);
+      } finally {
+        setConfirmingDialog(false);
+      }
       return;
     }
+
     const { abo } = dialog;
-    if (dialog.type === "supprimer") {
-      if (apiMode) {
-        toast.error("La suppression d’abonnement n’est pas disponible. Utilisez l’annulation.");
-        setDialog(null);
+
+    if (dialog.type === "annuler") {
+      const raison = raisonAnnulation.trim();
+      if (apiMode && raison.length < 3) {
+        toast.error("La raison doit contenir au moins 3 caractères.");
         return;
       }
-      setAbonnements((prev) =>
-        prev.map((row) =>
-          row.id === abo.id
-            ? { ...row, deletedAt: softDeleteTimestamp() }
-            : row
-        )
-      );
-      toast.success("Abonnement supprimé (soft delete).");
-    } else if (dialog.type === "suspendre") {
-      if (apiMode) {
-        toast.error("La suspension n’est pas disponible. Utilisez l’annulation.");
-      } else {
-        setAbonnements((prev) =>
-          prev.map((row) =>
-            row.id === abo.id ? { ...row, statut: "SUSPENDU" as const } : row
-          )
-        );
-        toast.success(`Abonnement de ${abo.utilisateurNom} suspendu.`);
+      if (!apiMode && !raison) {
+        toast.error("La raison d’annulation est obligatoire.");
+        return;
       }
-    } else if (dialog.type === "annuler") {
-      const result = await cancelSubscriptionPersisted(abo.id, raisonAnnulation);
-      if (!result.ok) {
-        toast.error(result.error);
-      } else {
+    }
+
+    setConfirmingDialog(true);
+    try {
+      if (dialog.type === "suspendre") {
+        const result = await suspendSubscriptionPersisted(abo.id);
+        if (!result.ok) {
+          toast.error(result.error);
+          return;
+        }
+        await rafraichirAbonnements();
+        toast.success(`Abonnement de ${abo.utilisateurNom} suspendu.`);
+      } else if (dialog.type === "activer") {
+        const result = await activateSubscriptionPersisted(abo.id);
+        if (!result.ok) {
+          toast.error(result.error);
+          return;
+        }
+        await rafraichirAbonnements();
+        toast.success(`Abonnement de ${abo.utilisateurNom} réactivé.`);
+      } else if (dialog.type === "annuler") {
+        const result = await cancelSubscriptionPersisted(abo.id, raisonAnnulation);
+        if (!result.ok) {
+          toast.error(result.error);
+          return;
+        }
         await rafraichirAbonnements();
         toast.success(`Abonnement de ${abo.utilisateurNom} annulé.`);
       }
+      setDialog(null);
+      setRaisonAnnulation("");
+    } finally {
+      setConfirmingDialog(false);
     }
+  };
+
+  const fermerDialog = () => {
+    if (confirmingDialog) return;
     setDialog(null);
     setRaisonAnnulation("");
   };
 
   const enregistrerPlan = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submittingPlan) return;
     const prix = Number(formPlan.prix);
     const dureeJours = Number(formPlan.dureeJours);
     if (!formPlan.nom.trim()) {
@@ -375,57 +397,53 @@ export default function AbonnementsPage() {
       toast.error("Le prix minimum est de 100 XOF.");
       return;
     }
-    if (modalPlan === "modifier" && planEdition) {
-      const result = await updatePlanPersisted(planEdition.id, {
-        ...(apiMode ? {} : { nom: formPlan.nom.trim() }),
-        prix,
-        dureeJours,
-        statut: formPlan.statut,
-      });
-      if (!result.ok) {
-        toast.error(result.error);
-        return;
+    setSubmittingPlan(true);
+    try {
+      if (modalPlan === "modifier" && planEdition) {
+        const result = await updatePlanPersisted(planEdition.id, {
+          ...(apiMode ? {} : { nom: formPlan.nom.trim() }),
+          prix,
+          dureeJours,
+          statut: formPlan.statut,
+        });
+        if (!result.ok) {
+          toast.error(result.error);
+          return;
+        }
+        toast.success("Plan tarifaire modifié.");
+      } else {
+        const code = formPlan.code.trim() || slugifyPlanCode(formPlan.nom);
+        const result = await createPlanPersisted({
+          nom: formPlan.nom.trim(),
+          code,
+          prix,
+          dureeJours,
+          ...(apiMode ? {} : { statut: formPlan.statut }),
+        });
+        if (!result.ok) {
+          toast.error(result.error);
+          return;
+        }
+        toast.success("Plan tarifaire créé.");
       }
-      toast.success("Plan tarifaire modifié.");
-    } else {
-      const code = formPlan.code.trim() || slugifyPlanCode(formPlan.nom);
-      const result = await createPlanPersisted({
-        nom: formPlan.nom.trim(),
-        code,
-        prix,
-        dureeJours,
-        ...(apiMode ? {} : { statut: formPlan.statut }),
-      });
-      if (!result.ok) {
-        toast.error(result.error);
-        return;
-      }
-      toast.success("Plan tarifaire créé.");
+      await rafraichirPlans();
+      setModalPlan(null);
+      setPlanEdition(null);
+    } finally {
+      setSubmittingPlan(false);
     }
-    await rafraichirPlans();
-    setModalPlan(null);
-    setPlanEdition(null);
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8" aria-busy={pageLoading}>
       <Breadcrumb items={adminCrumb("Abonnements")} />
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">
-            Abonnements
-          </h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Plans tarifaires et suivi des abonnements B LINKS
-          </p>
-        </div>
-        <Button
-          disabled={apiMode}
-          onClick={ouvrirAjout}
-          startIcon={<PlusIcon className="size-5" />}
-        >
-          Ajouter un abonnement
-        </Button>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">
+          Abonnements
+        </h1>
+        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+          Plans tarifaires et suivi des abonnements B LINKS
+        </p>
       </div>
 
       <section>
@@ -441,11 +459,20 @@ export default function AbonnementsPage() {
             Ajouter un plan
           </Button>
         </div>
-        {plansVisibles.length === 0 ? (
+        {showPlansSkeleton ? (
+          <PlansGridSkeleton />
+        ) : plansVisibles.length === 0 ? (
           <p className="text-sm text-gray-500 dark:text-gray-400">
             Aucun plan tarifaire. Ajoutez-en un pour commencer.
           </p>
         ) : (
+          <div
+            className={
+              loadingPlans
+                ? "pointer-events-none opacity-60 transition-opacity"
+                : "transition-opacity"
+            }
+          >
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3 md:gap-6">
             {plansVisibles.map((pl) => (
               <div
@@ -486,7 +513,7 @@ export default function AbonnementsPage() {
                     type="button"
                     title="Modifier"
                     onClick={() => ouvrirPlanModifier(pl)}
-                    className="flex h-9 w-9 items-center justify-center rounded-lg ring-1 ring-gray-200 hover:text-brand-500 dark:ring-gray-700"
+                    className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 ring-1 ring-gray-200 transition hover:bg-gray-100 hover:text-brand-500 dark:text-gray-400 dark:ring-gray-700 dark:hover:bg-white/5 dark:hover:text-brand-400"
                   >
                     <PencilIcon className="size-4" />
                   </button>
@@ -496,13 +523,14 @@ export default function AbonnementsPage() {
                     onClick={() =>
                       setDialog({ type: "supprimerPlan", plan: pl })
                     }
-                    className="flex h-9 w-9 items-center justify-center rounded-lg ring-1 ring-gray-200 hover:text-error-500 dark:ring-gray-700"
+                    className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 ring-1 ring-gray-200 transition hover:bg-error-50 hover:text-error-500 dark:text-gray-400 dark:ring-gray-700 dark:hover:bg-error-500/10 dark:hover:text-error-400"
                   >
                     <TrashBinIcon className="size-4" />
                   </button>
                 </div>
               </div>
             ))}
+          </div>
           </div>
         )}
       </section>
@@ -525,7 +553,7 @@ export default function AbonnementsPage() {
             >
               <option value="tous">Tous</option>
               <option value="ACTIF">Actif</option>
-              {!apiMode && <option value="SUSPENDU">Suspendu</option>}
+              <option value="SUSPENDU">Suspendu</option>
               <option value="EXPIRE">Expiré</option>
               <option value="ANNULE">Annulé</option>
             </select>
@@ -566,13 +594,22 @@ export default function AbonnementsPage() {
           </div>
         </div>
 
-        {listeFiltree.length === 0 ? (
+        {showSubsSkeleton ? (
+          <SubscriptionsTableSkeleton />
+        ) : !loadingAbonnements && listeFiltree.length === 0 ? (
           <EmptyState
             icon={<ShootingStarIcon className="size-7" />}
             message="Aucun abonnement trouvé pour ce filtre."
             onReset={reinitialiserFiltres}
           />
         ) : (
+          <div
+            className={
+              listRefreshingSubs
+                ? "pointer-events-none opacity-60 transition-opacity"
+                : "transition-opacity"
+            }
+          >
           <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
             <div className="max-w-full overflow-x-auto">
               <div className="min-w-[1080px]">
@@ -669,64 +706,43 @@ export default function AbonnementsPage() {
                         </TableCell>
                         <TableCell className="px-4 py-3 text-start">
                           <div className="flex flex-wrap gap-1.5">
-                            <button
-                              type="button"
-                              title="Modifier"
-                              onClick={() => ouvrirModification(a)}
-                              className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 ring-1 ring-gray-200 hover:bg-gray-50 hover:text-brand-500 dark:ring-gray-700 dark:hover:bg-white/5"
-                            >
-                              <PencilIcon className="size-4" />
-                            </button>
+                            {(a.statut === "SUSPENDU" || a.statut === "EXPIRE") && (
+                              <button
+                                type="button"
+                                disabled={confirmingDialog}
+                                onClick={() =>
+                                  setDialog({ type: "activer", abo: a })
+                                }
+                                className="rounded-lg border border-success-200 px-2.5 py-1.5 text-theme-xs font-medium text-success-600 hover:bg-success-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-success-500/30"
+                              >
+                                Activer
+                              </button>
+                            )}
                             {a.statut === "ACTIF" && (
                               <button
                                 type="button"
+                                disabled={confirmingDialog}
                                 onClick={() =>
                                   setDialog({ type: "suspendre", abo: a })
                                 }
-                                className="rounded-lg border border-warning-200 px-2.5 py-1.5 text-theme-xs font-medium text-warning-600 hover:bg-warning-50 dark:border-warning-500/30 dark:text-warning-400"
+                                className="rounded-lg border border-warning-200 px-2.5 py-1.5 text-theme-xs font-medium text-warning-600 hover:bg-warning-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-warning-500/30 dark:text-warning-400"
                               >
                                 Suspendre
-                              </button>
-                            )}
-                            {a.statut === "SUSPENDU" && (
-                              <button
-                                type="button"
-                                onClick={() =>
-                                  setAbonnements((prev) =>
-                                    prev.map((row) =>
-                                      row.id === a.id
-                                        ? { ...row, statut: "ACTIF" as const }
-                                        : row
-                                    )
-                                  )
-                                }
-                                className="rounded-lg border border-success-200 px-2.5 py-1.5 text-theme-xs font-medium text-success-600 hover:bg-success-50 dark:border-success-500/30"
-                              >
-                                Réactiver
                               </button>
                             )}
                             {a.statut !== "ANNULE" && (
                               <button
                                 type="button"
+                                disabled={confirmingDialog}
                                 onClick={() => {
                                   setRaisonAnnulation("");
                                   setDialog({ type: "annuler", abo: a });
                                 }}
-                                className="rounded-lg border border-error-200 px-2.5 py-1.5 text-theme-xs font-medium text-error-600 hover:bg-error-50 dark:border-error-500/30"
+                                className="rounded-lg border border-error-200 px-2.5 py-1.5 text-theme-xs font-medium text-error-600 hover:bg-error-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-error-500/30"
                               >
                                 Annuler
                               </button>
                             )}
-                            <button
-                              type="button"
-                              title="Supprimer"
-                              onClick={() =>
-                                setDialog({ type: "supprimer", abo: a })
-                              }
-                              className="flex h-9 w-9 items-center justify-center rounded-lg text-gray-500 ring-1 ring-gray-200 hover:bg-error-50 hover:text-error-500 dark:ring-gray-700"
-                            >
-                              <TrashBinIcon className="size-4" />
-                            </button>
                           </div>
                         </TableCell>
                       </TableRow>
@@ -736,168 +752,14 @@ export default function AbonnementsPage() {
               </div>
             </div>
           </div>
+          </div>
         )}
       </section>
 
       <Modal
-        isOpen={modalAbo != null}
-        onClose={() => {
-          setModalAbo(null);
-          setAboEdition(null);
-        }}
-        className="max-h-[90vh] w-full max-w-lg overflow-y-auto p-6 sm:p-8"
-      >
-        <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-          {modalAbo === "modifier"
-            ? "Modifier l'abonnement"
-            : "Nouvel abonnement"}
-        </h2>
-        <form onSubmit={enregistrerAbo} className="mt-6 space-y-4">
-          <div>
-            <Label htmlFor="abo-nom">Utilisateur *</Label>
-            <Input
-              id="abo-nom"
-              required
-              value={formAbo.utilisateurNom}
-              onChange={(e) =>
-                setFormAbo((f) => ({ ...f, utilisateurNom: e.target.value }))
-              }
-            />
-          </div>
-          <div>
-            <Label htmlFor="abo-email">E-mail *</Label>
-            <Input
-              id="abo-email"
-              type="email"
-              required
-              value={formAbo.utilisateurEmail}
-              onChange={(e) =>
-                setFormAbo((f) => ({ ...f, utilisateurEmail: e.target.value }))
-              }
-            />
-          </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <Label htmlFor="abo-plan-f">Plan</Label>
-              <select
-                id="abo-plan-f"
-                className={selectClass}
-                value={formAbo.plan}
-                onChange={(e) => {
-                  const plan = e.target.value;
-                  setFormAbo((f) => ({
-                    ...f,
-                    plan,
-                    montant: String(prixPlan(plan, plans)),
-                  }));
-                }}
-              >
-                {plansActifs.map((pl) => (
-                  <option key={pl.id} value={pl.code}>
-                    {pl.nom} — {formatXaf(pl.prix)}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <Label htmlFor="abo-type-f">Type</Label>
-              <select
-                id="abo-type-f"
-                className={selectClass}
-                value={formAbo.typeRenouvellement}
-                onChange={(e) =>
-                  setFormAbo((f) => ({
-                    ...f,
-                    typeRenouvellement: e.target.value as TypeRenouvellement,
-                  }))
-                }
-              >
-                {(Object.keys(TYPE_LABELS) as TypeRenouvellement[]).map(
-                  (k) => (
-                    <option key={k} value={k}>
-                      {TYPE_LABELS[k]}
-                    </option>
-                  )
-                )}
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <Label htmlFor="abo-debut">Date début</Label>
-              <Input
-                id="abo-debut"
-                type="date"
-                required
-                value={formAbo.dateDebut}
-                onChange={(e) =>
-                  setFormAbo((f) => ({ ...f, dateDebut: e.target.value }))
-                }
-              />
-            </div>
-            <div>
-              <Label htmlFor="abo-fin">Date fin</Label>
-              <Input
-                id="abo-fin"
-                type="date"
-                required
-                value={formAbo.dateFin}
-                onChange={(e) =>
-                  setFormAbo((f) => ({ ...f, dateFin: e.target.value }))
-                }
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <Label htmlFor="abo-montant">Montant (XAF)</Label>
-              <Input
-                id="abo-montant"
-                type="number"
-                min="0"
-                value={formAbo.montant}
-                onChange={(e) =>
-                  setFormAbo((f) => ({ ...f, montant: e.target.value }))
-                }
-              />
-            </div>
-            <div>
-              <Label htmlFor="abo-statut-f">Statut</Label>
-              <select
-                id="abo-statut-f"
-                className={selectClass}
-                value={formAbo.statut}
-                onChange={(e) =>
-                  setFormAbo((f) => ({
-                    ...f,
-                    statut: e.target.value as StatutAbonnement,
-                  }))
-                }
-              >
-                <option value="ACTIF">Actif</option>
-                {!apiMode && <option value="SUSPENDU">Suspendu</option>}
-                <option value="EXPIRE">Expiré</option>
-                <option value="ANNULE">Annulé</option>
-              </select>
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 border-t border-gray-100 pt-4 dark:border-gray-800">
-            <Button variant="outline" onClick={() => setModalAbo(null)}>
-              Annuler
-            </Button>
-            <button
-              type="submit"
-              className="inline-flex items-center justify-center rounded-lg bg-brand-500 px-5 py-3.5 text-sm font-medium text-white hover:bg-brand-600"
-            >
-              Enregistrer
-            </button>
-          </div>
-        </form>
-      </Modal>
-
-      <Modal
         isOpen={modalPlan != null}
         onClose={() => {
+          if (submittingPlan) return;
           setModalPlan(null);
           setPlanEdition(null);
         }}
@@ -1009,18 +871,48 @@ export default function AbonnementsPage() {
           <div className="flex justify-end gap-2 border-t border-gray-100 pt-4 dark:border-gray-800">
             <Button
               variant="outline"
+              type="button"
+              disabled={submittingPlan}
               onClick={() => {
                 setModalPlan(null);
                 setPlanEdition(null);
               }}
+              className="disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Annuler
+              {submittingPlan ? "Patientez…" : "Annuler"}
             </Button>
             <button
               type="submit"
-              className="inline-flex items-center justify-center rounded-lg bg-brand-500 px-5 py-3.5 text-sm font-medium text-white hover:bg-brand-600"
+              disabled={submittingPlan}
+              className="inline-flex min-w-[9rem] items-center justify-center gap-2 rounded-lg bg-brand-500 px-5 py-3.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Enregistrer
+              {submittingPlan ? (
+                <>
+                  <svg
+                    className="h-4 w-4 animate-spin"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    aria-hidden
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                  Enregistrement…
+                </>
+              ) : (
+                "Enregistrer"
+              )}
             </button>
           </div>
         </form>
@@ -1028,13 +920,14 @@ export default function AbonnementsPage() {
 
       <ConfirmDialog
         isOpen={dialog != null}
-        onClose={() => setDialog(null)}
+        onClose={fermerDialog}
         onConfirm={confirmerDialog}
+        confirming={confirmingDialog}
         title={
           dialog?.type === "supprimerPlan"
             ? "Supprimer ce plan tarifaire ?"
-            : dialog?.type === "supprimer"
-              ? "Supprimer cet abonnement ?"
+            : dialog?.type === "activer"
+              ? "Réactiver cet abonnement ?"
               : dialog?.type === "suspendre"
                 ? "Suspendre cet abonnement ?"
                 : "Annuler cet abonnement ?"
@@ -1049,9 +942,11 @@ export default function AbonnementsPage() {
             <>
               Abonnement de « {dialog.abo.utilisateurNom} » (
               {getPlanLabel(dialog.abo.plan)}).
-              {dialog.type === "supprimer" &&
-                " Soft delete : l'enregistrement est conservé mais masqué."}
-              {dialog.type === "annuler" && apiMode && (
+              {dialog.type === "activer" &&
+                " L’accès aux contenus internes sera rétabli."}
+              {dialog.type === "suspendre" &&
+                " L’accès aux contenus internes sera temporairement révoqué."}
+              {dialog.type === "annuler" && (
                 <div className="mt-4">
                   <Label htmlFor="raison-annulation">Raison d’annulation *</Label>
                   <TextArea
@@ -1059,6 +954,7 @@ export default function AbonnementsPage() {
                     value={raisonAnnulation}
                     onChange={(v) => setRaisonAnnulation(v)}
                     placeholder="Minimum 3 caractères"
+                    disabled={confirmingDialog}
                   />
                 </div>
               )}
@@ -1066,13 +962,21 @@ export default function AbonnementsPage() {
           ) : null
         }
         confirmLabel={
-          dialog?.type === "supprimer" || dialog?.type === "supprimerPlan"
+          dialog?.type === "supprimerPlan"
             ? "Supprimer"
-            : dialog?.type === "suspendre"
-              ? "Suspendre"
-              : "Confirmer l'annulation"
+            : dialog?.type === "activer"
+              ? "Activer"
+              : dialog?.type === "suspendre"
+                ? "Suspendre"
+                : "Confirmer l'annulation"
         }
-        variant="danger"
+        variant={
+          dialog?.type === "activer"
+            ? "primary"
+            : dialog?.type === "suspendre"
+              ? "warning"
+              : "danger"
+        }
       />
     </div>
   );

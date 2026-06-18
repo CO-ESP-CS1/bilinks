@@ -1,15 +1,16 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, ShieldCheck, Smartphone } from "lucide-react";
+import { Loader2, Smartphone } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { AccountInfoCard } from "@/components/subscribe/AccountInfoCard";
 import { PaymentMethod } from "@/components/subscribe/PaymentMethod";
 import { PaymentSummary } from "@/components/subscribe/PaymentSummary";
+import { PoweredByPawapay } from "@/components/subscribe/PoweredByPawapay";
 import { PrimaryButton } from "@/components/subscribe/PrimaryButton";
 import { StepIndicator } from "@/components/subscribe/StepIndicator";
 import { SubscribePageSkeleton } from "@/components/subscribe/SubscribePageSkeleton";
-import { isValidCongoPhone, maskPhone } from "@/components/subscribe/PhoneInput";
+import { getCongoPhoneProviderError, isValidCongoPhone, maskPhone } from "@/components/subscribe/PhoneInput";
 import { useSubscription } from "@/context/SubscriptionContext";
 import {
   fetchSubscribeMe,
@@ -130,12 +131,23 @@ export default function SubscribePaymentPage() {
 
   const canSubmit =
     provider &&
-    isValidCongoPhone(phone) &&
+    isValidCongoPhone(phone, provider) &&
     plan &&
     (SUBSCRIBE_MOCK || (userId && token && planApiId));
 
   const handlePay = async () => {
-    if (!canSubmit || !provider) return;
+    if (!provider || !plan) return;
+    if (!isValidCongoPhone(phone, provider)) {
+      const msg = getCongoPhoneProviderError(phone, provider);
+      setError(
+        msg ??
+          (provider === "MTN"
+            ? "Saisissez un numéro MTN valide commençant par 06."
+            : "Saisissez un numéro Airtel valide commençant par 05.")
+      );
+      return;
+    }
+    if (!canSubmit) return;
     setError(null);
     setPayment({ provider, phone });
     setPhase("processing");
@@ -276,10 +288,9 @@ export default function SubscribePaymentPage() {
             </PrimaryButton>
           </div>
 
-          <p className="mt-4 flex items-center justify-center gap-1 text-xs text-zinc-400">
-            <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-            Transaction sécurisée et chiffrée
-          </p>
+          <div className="mt-4">
+            <PoweredByPawapay size="xs" />
+          </div>
         </section>
       </div>
     </div>

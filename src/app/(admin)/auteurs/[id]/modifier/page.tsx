@@ -94,24 +94,31 @@ function ModifierAuteurForm({
   const [nom, setNom] = useState(auteur.nom);
   const [bio, setBio] = useState(auteur.bio ?? "");
   const [errNom, setErrNom] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
-      const result = await updateAuteurPersisted(auteur.id, {
-        prenom: prenom.trim(),
-        nom: nom.trim(),
-        bio,
-      });
-      if (!result.ok) {
-        setErrNom(true);
-        toast.error(result.error);
-        return;
+      if (submitting) return;
+      setSubmitting(true);
+      try {
+        const result = await updateAuteurPersisted(auteur.id, {
+          prenom: prenom.trim(),
+          nom: nom.trim(),
+          bio,
+        });
+        if (!result.ok) {
+          setErrNom(true);
+          toast.error(result.error);
+          return;
+        }
+        setErrNom(false);
+        onSuccess();
+      } finally {
+        setSubmitting(false);
       }
-      setErrNom(false);
-      onSuccess();
     },
-    [auteur.id, prenom, nom, bio, onSuccess]
+    [auteur.id, prenom, nom, bio, onSuccess, submitting]
   );
 
   return (
@@ -154,15 +161,43 @@ function ModifierAuteurForm({
         <button
           type="button"
           onClick={onCancel}
-          className="rounded-lg border border-gray-300 px-5 py-3.5 text-sm font-medium text-gray-700 dark:border-gray-700 dark:text-gray-300"
+          disabled={submitting}
+          className="rounded-lg border border-gray-300 px-5 py-3.5 text-sm font-medium text-gray-700 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:text-gray-300"
         >
           Annuler
         </button>
         <button
           type="submit"
-          className="rounded-lg bg-brand-500 px-5 py-3.5 text-sm font-medium text-white hover:bg-brand-600"
+          disabled={submitting}
+          className="inline-flex min-w-[9rem] items-center justify-center gap-2 rounded-lg bg-brand-500 px-5 py-3.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          Enregistrer
+          {submitting ? (
+            <>
+              <svg
+                className="h-4 w-4 animate-spin"
+                fill="none"
+                viewBox="0 0 24 24"
+                aria-hidden
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                />
+              </svg>
+              Enregistrement…
+            </>
+          ) : (
+            "Enregistrer"
+          )}
         </button>
       </div>
     </form>

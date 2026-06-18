@@ -7,6 +7,7 @@ import AppSidebar from "@/layout/AppSidebar";
 import Backdrop from "@/layout/Backdrop";
 import { AdminPageTransition } from "@/components/admin/AdminPageTransition";
 import { ApiSessionBanner } from "@/components/admin/ApiSessionBanner";
+import { AdminPageSearchProvider } from "@/context/AdminPageSearchContext";
 import React from "react";
 
 export default function AdminLayoutClient({
@@ -24,6 +25,7 @@ export default function AdminLayoutClient({
 
   return (
     <AuthGuard>
+      <AdminPageSearchProvider>
       <div className="min-h-screen xl:flex">
         <AppSidebar />
         <Backdrop />
@@ -37,6 +39,7 @@ export default function AdminLayoutClient({
           </div>
         </div>
       </div>
+      </AdminPageSearchProvider>
     </AuthGuard>
   );
 }

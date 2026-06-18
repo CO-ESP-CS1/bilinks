@@ -251,6 +251,20 @@ export function buildStatsSearchTermsQuery(input: {
   return params;
 }
 
+export function buildStatsActivityQuery(input: {
+  periode?: "7j" | "30j" | "90j";
+  page?: number;
+  limit?: number;
+  type?: "INSCRIPTION" | "PAIEMENT";
+}): URLSearchParams {
+  const params = new URLSearchParams();
+  if (input.periode) params.set("periode", input.periode);
+  if (input.page != null) params.set("page", String(input.page));
+  if (input.limit != null) params.set("limit", String(input.limit));
+  if (input.type) params.set("type", input.type);
+  return params;
+}
+
 export function buildStatsBooksQuery(input: {
   sort?: string;
   page?: number;

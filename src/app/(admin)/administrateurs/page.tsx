@@ -33,6 +33,59 @@ type DialogCible = {
   type: "suspendre" | "supprimer";
 };
 
+function TextSkeleton({ className = "" }: { className?: string }) {
+  return (
+    <div
+      className={`animate-pulse rounded bg-gray-200 dark:bg-white/10 ${className}`}
+      aria-hidden
+    />
+  );
+}
+
+function AdminsTableSkeleton({ withAvatar = false }: { withAvatar?: boolean }) {
+  const cols = withAvatar ? 7 : 4;
+  return (
+    <div
+      className="overflow-x-auto"
+      aria-busy="true"
+      aria-label="Chargement des administrateurs"
+    >
+      <div className="min-w-[800px]">
+        <div className="flex gap-3 border-b border-gray-100 px-4 py-3 dark:border-white/[0.05]">
+          {Array.from({ length: cols }).map((_, i) => (
+            <TextSkeleton key={i} className="h-4 w-20" />
+          ))}
+        </div>
+        <div className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3 px-4 py-3">
+              {withAvatar && (
+                <TextSkeleton className="h-10 w-10 shrink-0 rounded-full" />
+              )}
+              <TextSkeleton className="h-4 w-32" />
+              <TextSkeleton className="h-4 w-40" />
+              <TextSkeleton className="h-6 w-16 rounded-full" />
+              {withAvatar ? (
+                <>
+                  <TextSkeleton className="h-6 w-14 rounded-full" />
+                  <TextSkeleton className="h-4 w-24" />
+                  <div className="flex gap-1">
+                    <TextSkeleton className="h-9 w-9 rounded-lg" />
+                    <TextSkeleton className="h-9 w-9 rounded-lg" />
+                    <TextSkeleton className="h-9 w-9 rounded-lg" />
+                  </div>
+                </>
+              ) : (
+                <TextSkeleton className="h-4 w-24" />
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdministrateursPage() {
   const apiMode = isApiConfigured();
   const {
@@ -46,7 +99,7 @@ export default function AdministrateursPage() {
   } = useAuth();
 
   const [apiAdmins, setApiAdmins] = useState<MockUtilisateur[]>([]);
-  const [loadingAdmins, setLoadingAdmins] = useState(false);
+  const [loadingAdmins, setLoadingAdmins] = useState(apiMode);
   const [modalCreate, setModalCreate] = useState(false);
   const [editCible, setEditCible] = useState<AdminAccount | null>(null);
   const [dialogCible, setDialogCible] = useState<DialogCible | null>(null);
@@ -63,6 +116,8 @@ export default function AdministrateursPage() {
   const [editLocalisation, setEditLocalisation] = useState("");
   const [editPassword, setEditPassword] = useState("");
 
+  const [creatingAdmin, setCreatingAdmin] = useState(false);
+
   useEffect(() => {
     refresh();
   }, [refresh]);
@@ -70,12 +125,16 @@ export default function AdministrateursPage() {
   const loadApiAdmins = useCallback(async () => {
     if (!apiMode || !hasApiSession()) {
       setApiAdmins([]);
+      setLoadingAdmins(false);
       return;
     }
     setLoadingAdmins(true);
-    const result = await fetchUsersPersisted({ role: "ADMIN", limit: 100 });
-    setApiAdmins(result.users);
-    setLoadingAdmins(false);
+    try {
+      const result = await fetchUsersPersisted({ role: "ADMIN", limit: 100 });
+      setApiAdmins(result.users);
+    } finally {
+      setLoadingAdmins(false);
+    }
   }, [apiMode]);
 
   useEffect(() => {
@@ -108,22 +167,28 @@ export default function AdministrateursPage() {
 
   const handleCreate = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (creatingAdmin) return;
     const fd = new FormData(e.currentTarget);
-    const result = await addAdmin({
-      prenom: String(fd.get("prenom") ?? prenom).trim(),
-      nom: String(fd.get("nom") ?? nom).trim(),
-      email: String(fd.get("email") ?? email).trim(),
-      password: String(fd.get("password") ?? password),
-    });
-    if (!result.ok) {
-      toast.error(result.error);
-      return;
-    }
-    toast.success(`Administrateur « ${getDisplayName(result.admin)} » créé.`);
-    setModalCreate(false);
-    reinitialiserCreate();
-    if (apiMode) {
-      await loadApiAdmins();
+    setCreatingAdmin(true);
+    try {
+      const result = await addAdmin({
+        prenom: String(fd.get("prenom") ?? prenom).trim(),
+        nom: String(fd.get("nom") ?? nom).trim(),
+        email: String(fd.get("email") ?? email).trim(),
+        password: String(fd.get("password") ?? password),
+      });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      toast.success(`Administrateur « ${getDisplayName(result.admin)} » créé.`);
+      setModalCreate(false);
+      reinitialiserCreate();
+      if (apiMode) {
+        await loadApiAdmins();
+      }
+    } finally {
+      setCreatingAdmin(false);
     }
   };
 
@@ -146,12 +211,12 @@ export default function AdministrateursPage() {
     fermerEdit();
   };
 
-  const confirmerDialog = () => {
+  const confirmerDialog = async () => {
     if (!dialogCible) return;
     const { admin: cible, type } = dialogCible;
     if (type === "suspendre") {
       const suspendre = cible.statut === "ACTIF";
-      const result = suspendAdmin(cible.id, suspendre);
+      const result = await suspendAdmin(cible.id, suspendre);
       if (!result.ok) {
         toast.error(result.error);
       } else {
@@ -182,8 +247,11 @@ export default function AdministrateursPage() {
     "Actions",
   ];
 
+  const showPageSkeleton = apiMode && loadingAdmins && apiAdmins.length === 0;
+  const listRefreshing = apiMode && loadingAdmins && apiAdmins.length > 0;
+
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" aria-busy={showPageSkeleton}>
       <Breadcrumb items={adminCrumb("Administrateurs")} />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
@@ -198,14 +266,24 @@ export default function AdministrateursPage() {
       </div>
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
+        {showPageSkeleton ? (
+          <AdminsTableSkeleton />
+        ) : (
         <div className="overflow-x-auto">
           <div className="min-w-[800px]">
             {apiMode ? (
-              apiAdmins.length === 0 ? (
+              !loadingAdmins && apiAdmins.length === 0 ? (
                 <p className="px-6 py-10 text-center text-sm text-gray-500">
                   Aucun administrateur.
                 </p>
               ) : (
+                <div
+                  className={
+                    listRefreshing
+                      ? "pointer-events-none opacity-60 transition-opacity"
+                      : "transition-opacity"
+                  }
+                >
                 <Table>
                   <TableHeader className="border-b border-gray-100 dark:border-white/[0.05]">
                     <TableRow>
@@ -241,6 +319,7 @@ export default function AdministrateursPage() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               )
             ) : admins.length === 0 ? (
               <p className="px-6 py-10 text-center text-sm text-gray-500">
@@ -367,11 +446,13 @@ export default function AdministrateursPage() {
             )}
           </div>
         </div>
+        )}
       </div>
 
       <Modal
         isOpen={modalCreate}
         onClose={() => {
+          if (creatingAdmin) return;
           setModalCreate(false);
           reinitialiserCreate();
         }}
@@ -427,19 +508,47 @@ export default function AdministrateursPage() {
           <div className="flex justify-end gap-3 border-t border-gray-100 pt-4 dark:border-gray-800">
             <button
               type="button"
+              disabled={creatingAdmin}
               onClick={() => {
                 setModalCreate(false);
                 reinitialiserCreate();
               }}
-              className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 dark:border-gray-700 dark:text-gray-300"
+              className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:text-gray-300"
             >
               Annuler
             </button>
             <button
               type="submit"
-              className="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600"
+              disabled={creatingAdmin}
+              className="inline-flex min-w-[7.5rem] items-center justify-center gap-2 rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Créer
+              {creatingAdmin ? (
+                <>
+                  <svg
+                    className="h-4 w-4 animate-spin"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    aria-hidden
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    />
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                  </svg>
+                  Création…
+                </>
+              ) : (
+                "Créer"
+              )}
             </button>
           </div>
         </form>

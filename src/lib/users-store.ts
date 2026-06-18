@@ -19,7 +19,7 @@ import type {
   AdminUsersListResponse,
   AdminUserStatutResponse,
 } from "@/lib/api/admin-types";
-import { isAdminListApiReady, isDemoDataOnly } from "@/lib/api/admin-list-fetch";
+import { isAdminListApiReady , API_REQUIRED_MESSAGE } from "@/lib/api/admin-list-fetch";
 import { apiRequest, isApiConfigured } from "@/lib/api/client";
 import { messageFromApiError, SESSION_REQUIRED_MESSAGE } from "@/lib/api/errors";
 import { buildAdminUsersQuery } from "@/lib/admin/validators";
@@ -63,27 +63,14 @@ function writeUsers(users: MockUtilisateur[]): void {
 
 function setCache(users: MockUtilisateur[]): void {
   apiCache = users;
-  writeUsers(users);
 }
 
 export function ensureUsers(): MockUtilisateur[] {
-  if (!isDemoDataOnly()) {
-    return apiCache ?? readUsers();
-  }
-  if (apiCache?.length) return apiCache;
-  let users = readUsers();
-  if (users.length === 0) {
-    users = mockUtilisateurs.map((u) => ({ ...u, deletedAt: u.deletedAt ?? null }));
-    writeUsers(users);
-  }
-  return users;
+  return apiCache ?? [];
 }
 
 export function getAllUsers(includeDeleted = false): MockUtilisateur[] {
-  const raw = isDemoDataOnly()
-    ? (apiCache ?? ensureUsers())
-    : (apiCache ?? readUsers());
-  const list = raw.map((u) => ({
+  const list = (apiCache ?? []).map((u) => ({
     ...u,
     deletedAt: u.deletedAt ?? null,
   }));
@@ -212,7 +199,7 @@ export async function fetchUsersPersisted(
   options?: FetchUsersOptions
 ): Promise<FetchUsersResult> {
   if (!isApiConfigured()) {
-    return { users: getAllUsers(), meta: null };
+    return { users: [], meta: null };
   }
   if (!isAdminListApiReady()) {
     return { users: [], meta: null };
@@ -252,30 +239,7 @@ export async function fetchUserDetailPersisted(
   | { ok: false; error: string }
 > {
   if (!isApiConfigured()) {
-    const user = getUserById(id);
-    if (!user) return { ok: false, error: "Utilisateur introuvable." };
-    return {
-      ok: true,
-      user,
-      detail: {
-        auth: {
-          id: user.id,
-          email: user.email,
-          role: user.role,
-          statut: user.statut,
-          date_inscription: user.dateInscription,
-        },
-        personne: {
-          nom: user.nom,
-          prenom: user.prenom,
-          ecole: user.ecole,
-          niveau: user.niveau,
-          points: user.points,
-        },
-        abonnements: [],
-        paiements: [],
-      },
-    };
+    return { ok: false, error: API_REQUIRED_MESSAGE };
   }
 
   if (!isAdminListApiReady()) {
@@ -353,12 +317,7 @@ export async function createAdminPersisted(input: {
     }
   }
 
-  return createUserLocal({
-    ...input,
-    role: "ADMIN",
-    ecole: "—",
-    niveau: "—",
-  });
+  return { ok: false, error: API_REQUIRED_MESSAGE };
 }
 
 export async function createUserPersisted(input: {
@@ -385,7 +344,7 @@ export async function createUserPersisted(input: {
         "La création de comptes utilisateurs se fait depuis l'application mobile, pas depuis l'administration.",
     };
   }
-  return createUserLocal(input);
+  return { ok: false, error: API_REQUIRED_MESSAGE };
 }
 
 /**
@@ -434,7 +393,7 @@ export async function banUserPersisted(
 
   const user = getUserById(id);
   if (!user) return { ok: false, error: "Utilisateur introuvable." };
-  return updateUserLocal(id, { statut: "BANNI" });
+  return { ok: false, error: API_REQUIRED_MESSAGE };
 }
 
 /**
@@ -479,7 +438,7 @@ export async function unbanUserPersisted(
 
   const user = getUserById(id);
   if (!user) return { ok: false, error: "Utilisateur introuvable." };
-  return updateUserLocal(id, { statut: "ACTIF" });
+  return { ok: false, error: API_REQUIRED_MESSAGE };
 }
 
 export async function toggleUserBanPersisted(
@@ -526,7 +485,7 @@ export async function updateUserPersisted(
         "Modification profil non exposée par l’API (ban / unban uniquement).",
     };
   }
-  return updateUserLocal(id, patch);
+  return { ok: false, error: API_REQUIRED_MESSAGE };
 }
 
 export async function deleteUserPersisted(
@@ -538,5 +497,5 @@ export async function deleteUserPersisted(
       error: "Suppression compte non disponible via l’API admin.",
     };
   }
-  return deleteUserLocal(id);
+  return { ok: false, error: API_REQUIRED_MESSAGE };
 }

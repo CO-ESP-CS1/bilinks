@@ -8,9 +8,11 @@ type ProfileEditModalProps = {
   onClose: () => void;
   title: string;
   description: string;
-  onSave: () => void;
+  onSave: () => void | Promise<void>;
   children: React.ReactNode;
   maxWidth?: "md" | "lg";
+  submitting?: boolean;
+  saveLabel?: string;
 };
 
 const maxWidthClass = {
@@ -26,6 +28,8 @@ export function ProfileEditModal({
   onSave,
   children,
   maxWidth = "lg",
+  submitting = false,
+  saveLabel = "Enregistrer",
 }: ProfileEditModalProps) {
   return (
     <Modal
@@ -47,7 +51,7 @@ export function ProfileEditModal({
           className="flex min-h-0 flex-1 flex-col"
           onSubmit={(e) => {
             e.preventDefault();
-            onSave();
+            void onSave();
           }}
         >
           <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-5">
@@ -57,15 +61,17 @@ export function ProfileEditModal({
             <button
               type="button"
               onClick={onClose}
-              className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 dark:border-gray-700 dark:text-gray-300"
+              disabled={submitting}
+              className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 disabled:opacity-60 dark:border-gray-700 dark:text-gray-300"
             >
               Annuler
             </button>
             <button
               type="submit"
-              className="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600"
+              disabled={submitting}
+              className="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              Enregistrer
+              {submitting ? "Enregistrement…" : saveLabel}
             </button>
           </div>
         </form>

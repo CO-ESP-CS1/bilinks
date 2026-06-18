@@ -1,6 +1,6 @@
-import { mockBadges, type MockBadge } from "@/lib/mock-data";
+import type { MockBadge } from "@/lib/mock-data";
 import { mapAdminBadgeToMock } from "@/lib/api/adapters";
-import { isAdminListApiReady } from "@/lib/api/admin-list-fetch";
+import { isAdminListApiReady , API_REQUIRED_MESSAGE } from "@/lib/api/admin-list-fetch";
 import type {
   AdminBadgeCreateResponse,
   AdminBadgeListItemApi,
@@ -55,7 +55,6 @@ function writeBadges(rows: MockBadge[]): void {
 
 function setCache(rows: MockBadge[]): void {
   apiCache = rows;
-  writeBadges(rows);
 }
 
 function normalize(b: MockBadge): MockBadge {
@@ -63,21 +62,11 @@ function normalize(b: MockBadge): MockBadge {
 }
 
 function ensureBadges(): MockBadge[] {
-  if (apiCache !== null) return apiCache;
-  let rows = readBadges().map(normalize);
-  if (rows.length === 0) {
-    rows = mockBadges.map((b) => ({ ...b, deletedAt: b.deletedAt ?? null }));
-    writeBadges(rows);
-  }
-  return rows;
+  return apiCache ?? [];
 }
 
 export function getAllBadges(): MockBadge[] {
-  if (apiCache !== null) return apiCache;
-  if (isApiConfigured()) {
-    return readBadges().map(normalize);
-  }
-  return ensureBadges();
+  return apiCache ?? [];
 }
 
 export function getBadgeById(id: string): MockBadge | null {
@@ -89,7 +78,7 @@ export async function fetchBadgesPersisted(options?: {
   limit?: number;
 }): Promise<MockBadge[]> {
   if (!isApiConfigured()) {
-    return ensureBadges();
+    return [];
   }
   if (!isAdminListApiReady()) {
     return [];

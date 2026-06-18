@@ -9,6 +9,7 @@ export type TypeLivre = "INTERNE" | "EXTERNE";
 
 const TITRE_MAX = 300;
 const ISBN_MAX = 20;
+const MAISON_EDITION_MAX = 200;
 
 export type BuildBookFormInput = {
   titre: string;
@@ -19,6 +20,7 @@ export type BuildBookFormInput = {
   nombrePages?: number | null;
   isbn?: string;
   resume?: string;
+  maison_edition?: string;
   fichier?: File;
   couvertureFile?: File;
   is_downloadable?: boolean;
@@ -33,6 +35,7 @@ export type UpdateBookPersistedInput = {
   nombrePages?: number | null;
   isbn?: string;
   resume?: string;
+  maisonEdition?: string;
   couvertureFile?: File;
   fichier?: File;
   is_downloadable?: boolean;
@@ -51,6 +54,7 @@ export type BuildUpdateBookFormInput = {
   nombrePages?: number | null;
   isbn?: string;
   resume?: string;
+  maison_edition?: string;
   fichier?: File;
   couvertureFile?: File;
   is_downloadable?: boolean;
@@ -70,6 +74,7 @@ export type CreateBookPersistedInput = {
   fichier?: File;
   isbn?: string;
   resume?: string;
+  maisonEdition?: string;
   is_downloadable?: boolean;
 };
 
@@ -97,6 +102,12 @@ export function validateCreateBookInput(
   }
   if (input.isbn?.trim() && input.isbn.trim().length > ISBN_MAX) {
     return `L’ISBN ne peut pas dépasser ${ISBN_MAX} caractères.`;
+  }
+  if (
+    input.maisonEdition?.trim() &&
+    input.maisonEdition.trim().length > MAISON_EDITION_MAX
+  ) {
+    return `La maison d’édition ne peut pas dépasser ${MAISON_EDITION_MAX} caractères.`;
   }
 
   const anneeError = validateOptionalPositiveInt(
@@ -162,6 +173,12 @@ export function validateUpdateBookInput(
   if (input.isbn?.trim() && input.isbn.trim().length > ISBN_MAX) {
     return `L’ISBN ne peut pas dépasser ${ISBN_MAX} caractères.`;
   }
+  if (
+    input.maisonEdition?.trim() &&
+    input.maisonEdition.trim().length > MAISON_EDITION_MAX
+  ) {
+    return `La maison d’édition ne peut pas dépasser ${MAISON_EDITION_MAX} caractères.`;
+  }
 
   const anneeError = validateOptionalPositiveInt(
     input.anneePublication,
@@ -210,6 +227,9 @@ export function buildUpdateBookFormData(
   if (input.langue?.trim()) form.set("langue", input.langue.trim());
   if (input.isbn?.trim()) form.set("isbn", input.isbn.trim());
   if (input.resume?.trim()) form.set("resume", input.resume.trim());
+  if (input.maison_edition?.trim()) {
+    form.set("maison_edition", input.maison_edition.trim());
+  }
 
   if (input.type_livre === "EXTERNE") {
     if (input.url_externe_livre?.trim()) {
@@ -249,7 +269,7 @@ export function buildBookFormData(input: BuildBookFormInput): FormData {
   const form = new FormData();
   form.set("titre", input.titre.trim());
   form.set("type_livre", type);
-  if (input.langue?.trim()) form.set("langue", input.langue.trim());
+  form.set("langue", (input.langue?.trim() || "Français"));
 
   if (type === "EXTERNE" && input.url_externe_livre?.trim()) {
     form.set("url_externe_livre", input.url_externe_livre.trim());
@@ -274,6 +294,9 @@ export function buildBookFormData(input: BuildBookFormInput): FormData {
   }
   if (input.isbn?.trim()) form.set("isbn", input.isbn.trim());
   if (input.resume?.trim()) form.set("resume", input.resume.trim());
+  if (input.maison_edition?.trim()) {
+    form.set("maison_edition", input.maison_edition.trim());
+  }
 
   if (type === "INTERNE" && input.fichier) {
     form.append("file", input.fichier, input.fichier.name);

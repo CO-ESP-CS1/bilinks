@@ -30,7 +30,7 @@ const SESSION_KEY = "bibliotech_session";
 export const DEFAULT_ADMIN_EMAIL = "admin@bibliotech.app";
 export const DEFAULT_ADMIN_PASSWORD = "Admin2025!";
 
-const DEFAULT_AVATAR = "/images/logo/logo-icon.svg";
+export const DEFAULT_AVATAR = "/images/logo/logo-icon.svg";
 
 function isBrowser(): boolean {
   return typeof window !== "undefined";
@@ -182,6 +182,7 @@ export function establishLocalSessionFromApiUser(user: {
 }
 
 /** Session UI si JWT présent (ex. NEXT_PUBLIC_ADMIN_BEARER_TOKEN) sans login formulaire. */
+/** @deprecated Ne plus utiliser — hydrater via GET /me (hydrateAdminSessionFromApi). */
 export function getApiBootstrapAdmin(): AdminAccount | null {
   if (!isBrowser() || !isApiConfigured() || !getApiBearerToken()) {
     return null;
@@ -225,7 +226,7 @@ export function getCurrentAdmin(): AdminAccount | null {
     const admin = getAdminById(session.adminId);
     if (admin) return admin;
   }
-  return getApiBootstrapAdmin();
+  return null;
 }
 
 export function updateAdminProfile(

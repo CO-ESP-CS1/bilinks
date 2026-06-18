@@ -8,14 +8,15 @@ import {
   mockKPIs,
   mockAbonnementsChart,
   mockPlanRepartition,
-  mockActiviteRecente,
   type MockPlanTarifaire,
   type PlanType,
 } from "@/lib/mock-data";
 import {
+  fetchDashboardActivity,
   fetchDashboardAlerts,
   fetchDashboardStats,
   fetchStatsUsers,
+  type DashboardActivityItem,
   type DashboardAlerts,
   type DashboardFetchResult,
   type DashboardView,
@@ -25,12 +26,10 @@ import { hasApiSession } from "@/lib/api/session";
 import { fetchPlansPersisted } from "@/lib/plans-store";
 import { fetchSubscriptionsPersisted } from "@/lib/subscriptions-store";
 import {
-  ChatIcon,
   CheckCircleIcon,
   DocsIcon,
   DollarLineIcon,
   GroupIcon,
-  ShootingStarIcon,
   UserIcon,
 } from "@/icons";
 import { Breadcrumb, adminCrumb } from "@/components/Breadcrumb";
@@ -47,21 +46,124 @@ function formatEntierFr(n: number): string {
   return new Intl.NumberFormat("fr-FR").format(n);
 }
 
-function aggregateInscriptionsByMonth(
+function DashboardSpinner({ className = "" }: { className?: string }) {
+  return (
+    <svg
+      className={`h-6 w-6 animate-spin text-brand-500 ${className}`}
+      fill="none"
+      viewBox="0 0 24 24"
+      aria-hidden
+    >
+      <circle
+        className="opacity-25"
+        cx="12"
+        cy="12"
+        r="10"
+        stroke="currentColor"
+        strokeWidth="4"
+      />
+      <path
+        className="opacity-75"
+        fill="currentColor"
+        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+      />
+    </svg>
+  );
+}
+
+function TextSkeleton({ className = "" }: { className?: string }) {
+  return (
+    <div
+      className={`animate-pulse rounded bg-gray-200 dark:bg-white/10 ${className}`}
+      aria-hidden
+    />
+  );
+}
+
+function KpiValuesSkeleton() {
+  return (
+    <div className="mt-5 space-y-3" aria-busy="true" aria-label="Chargement">
+      <TextSkeleton className="h-8 w-24" />
+      <TextSkeleton className="h-4 w-36" />
+    </div>
+  );
+}
+
+function ChartLoadingState() {
+  return (
+    <div
+      className="flex h-[320px] flex-col items-center justify-center gap-3 text-sm text-gray-500 dark:text-gray-400"
+      aria-busy="true"
+      aria-label="Chargement du graphique"
+    >
+      <DashboardSpinner className="h-8 w-8" />
+      <span>Chargement des inscriptions…</span>
+    </div>
+  );
+}
+
+function PlanCardSkeleton() {
+  return (
+    <div className="admin-card animate-pulse rounded-xl border border-gray-100 p-5 dark:border-white/[0.06]">
+      <TextSkeleton className="h-4 w-28" />
+      <TextSkeleton className="mt-3 h-7 w-20" />
+      <TextSkeleton className="mt-3 h-4 w-32" />
+      <TextSkeleton className="mt-4 h-2 w-full rounded-full" />
+    </div>
+  );
+}
+
+function AlertCardSkeleton() {
+  return (
+    <div className="admin-card animate-pulse rounded-xl border border-gray-100 p-4 dark:border-white/[0.06]">
+      <div className="flex gap-3">
+        <TextSkeleton className="h-6 w-6 shrink-0 rounded-full" />
+        <div className="flex-1 space-y-2">
+          <TextSkeleton className="h-4 w-40" />
+          <TextSkeleton className="h-4 w-56" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const JOURS_COURTS_FR = ["dim", "lun", "mar", "mer", "jeu", "ven", "sam"] as const;
+
+function toLocalDateKey(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function formatJourLabel(dateKey: string): string {
+  const d = new Date(`${dateKey}T12:00:00`);
+  const weekday = JOURS_COURTS_FR[d.getDay()] ?? "";
+  return `${weekday}. ${d.getDate()}`;
+}
+
+/** 7 derniers jours calendaires, aujourd'hui inclus, avec 0 si aucune inscription. */
+function aggregateInscriptionsLast7Days(
   points: Array<{ date: string; count: number }>
-): Array<{ mois: string; count: number }> {
-  const byMonth = new Map<string, number>();
+): Array<{ jour: string; count: number }> {
+  const byDay = new Map<string, number>();
   for (const p of points) {
-    const key = p.date.slice(0, 7);
-    byMonth.set(key, (byMonth.get(key) ?? 0) + p.count);
+    const key = p.date.slice(0, 10);
+    byDay.set(key, (byDay.get(key) ?? 0) + p.count);
   }
-  return [...byMonth.entries()]
-    .sort(([a], [b]) => a.localeCompare(b))
-    .slice(-6)
-    .map(([ym, count]) => ({
-      mois: ym.slice(5) + "/" + ym.slice(2, 4),
-      count,
-    }));
+
+  const keys: string[] = [];
+  const now = new Date();
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    keys.push(toLocalDateKey(d));
+  }
+
+  return keys.map((dateKey) => ({
+    jour: formatJourLabel(dateKey),
+    count: byDay.get(dateKey) ?? 0,
+  }));
 }
 
 export default function Page() {
@@ -70,13 +172,16 @@ export default function Page() {
     null
   );
   const [alerts, setAlerts] = useState<DashboardAlerts | null>(null);
-  const [inscriptionsMois, setInscriptionsMois] = useState<
-    Array<{ mois: string; count: number }>
+  const [inscriptionsJours, setInscriptionsJours] = useState<
+    Array<{ jour: string; count: number }>
   >([]);
   const [plansApi, setPlansApi] = useState<MockPlanTarifaire[]>([]);
   const [abonnesParPlan, setAbonnesParPlan] = useState<
     Partial<Record<PlanType, number>>
   >({});
+  const [activiteRecente, setActiviteRecente] = useState<DashboardActivityItem[]>(
+    []
+  );
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -84,11 +189,12 @@ export default function Page() {
     setLoading(true);
 
     void (async () => {
-      const [dash, alertRows, usersStats, plans, subs] = await Promise.all([
+      const [dash, alertRows, usersStats, plans, subs, activity] =
+        await Promise.all([
         fetchDashboardStats(),
         fetchDashboardAlerts(),
         apiMode && hasApiSession()
-          ? fetchStatsUsers("90j")
+          ? fetchStatsUsers("7j")
           : Promise.resolve(null),
         apiMode && hasApiSession()
           ? fetchPlansPersisted()
@@ -96,18 +202,21 @@ export default function Page() {
         apiMode && hasApiSession()
           ? fetchSubscriptionsPersisted({ statut: "ACTIF" })
           : Promise.resolve([]),
+        apiMode && hasApiSession()
+          ? fetchDashboardActivity({ periode: "7j", limit: 10 })
+          : Promise.resolve([]),
       ]);
 
       if (cancelled) return;
 
       setDashResult(dash);
       setAlerts(alertRows);
-      if (usersStats?.inscriptionsParJour?.length) {
-        setInscriptionsMois(
-          aggregateInscriptionsByMonth(usersStats.inscriptionsParJour)
+      if (usersStats) {
+        setInscriptionsJours(
+          aggregateInscriptionsLast7Days(usersStats.inscriptionsParJour)
         );
       } else {
-        setInscriptionsMois([]);
+        setInscriptionsJours([]);
       }
 
       setPlansApi(plans.filter((p) => p.statut === "ACTIF"));
@@ -118,6 +227,7 @@ export default function Page() {
         counts[code] = (counts[code] ?? 0) + 1;
       }
       setAbonnesParPlan(counts);
+      setActiviteRecente(activity);
       setLoading(false);
     })();
 
@@ -126,32 +236,19 @@ export default function Page() {
     };
   }, [apiMode]);
 
-  const useMockDashboard = !apiMode || dashResult?.source === "mock";
+  const useMockDashboard = false;
   const kpi: DashboardView =
-    dashResult?.data ??
-    (useMockDashboard
-      ? {
-          totalLivres: mockKPIs.totalLivres,
-          totalUtilisateurs: mockKPIs.totalUtilisateurs,
-          abonnementsActifs: mockKPIs.abonnementsActifs,
-          revenusMonthly: mockKPIs.revenusMonthly,
-          livresAjoutes: mockKPIs.livresAjoutes,
-          nouveauxUsersHebdo: mockKPIs.nouveauxUsersHebdo,
-          nbLectures7j: 0,
-          nbPaiementsSucces7j: 0,
-          topLivres: [],
-        }
-      : {
-          totalLivres: 0,
-          totalUtilisateurs: 0,
-          abonnementsActifs: 0,
-          revenusMonthly: 0,
-          livresAjoutes: 0,
-          nouveauxUsersHebdo: 0,
-          nbLectures7j: 0,
-          nbPaiementsSucces7j: 0,
-          topLivres: [],
-        });
+    dashResult?.data ?? {
+      totalLivres: 0,
+      totalUtilisateurs: 0,
+      abonnementsActifs: 0,
+      revenusMonthly: 0,
+      livresAjoutes: 0,
+      nouveauxUsersHebdo: 0,
+      nbLectures7j: 0,
+      nbPaiementsSucces7j: 0,
+      topLivres: [],
+    };
 
   const refAbonnesMensuel = useMemo(() => {
     if (!useMockDashboard && plansApi.length) {
@@ -165,28 +262,28 @@ export default function Page() {
     () => ({
       chart: {
         fontFamily: "Outfit, sans-serif",
-        type: "line",
+        type: "bar",
         height: 320,
         toolbar: { show: false },
         zoom: { enabled: false },
       },
-      colors: ["#1e5f8f", "#10B981"],
-      stroke: {
-        curve: "smooth",
-        width: [3, 3],
-      },
-      fill: {
-        type: "gradient",
-        gradient: {
-          opacityFrom: 0.45,
-          opacityTo: 0.05,
+      colors: ["#1e5f8f"],
+      plotOptions: {
+        bar: {
+          borderRadius: 6,
+          columnWidth: "55%",
         },
       },
+      stroke: {
+        show: true,
+        width: 2,
+        colors: ["transparent"],
+      },
+      fill: {
+        opacity: 1,
+      },
       markers: {
-        size: 4,
-        strokeWidth: 2,
-        strokeColors: "#fff",
-        hover: { size: 6 },
+        size: 0,
       },
       dataLabels: { enabled: false },
       legend: {
@@ -203,7 +300,7 @@ export default function Page() {
       xaxis: {
         categories: useMockDashboard
           ? mockAbonnementsChart.map((d) => d.mois)
-          : inscriptionsMois.map((d) => d.mois),
+          : inscriptionsJours.map((d) => d.jour),
         axisBorder: { show: false },
         axisTicks: { show: false },
         labels: {
@@ -222,7 +319,7 @@ export default function Page() {
         },
       },
     }),
-    [useMockDashboard, inscriptionsMois]
+    [useMockDashboard, inscriptionsJours]
   );
 
   const chartSeries = useMemo(
@@ -241,18 +338,21 @@ export default function Page() {
         : [
             {
               name: "Inscriptions",
-              data: inscriptionsMois.map((d) => d.count),
+              data: inscriptionsJours.map((d) => d.count),
             },
           ],
-    [useMockDashboard, inscriptionsMois]
+    [useMockDashboard, inscriptionsJours]
   );
 
   const derniersNouveaux = useMockDashboard
     ? (mockAbonnementsChart.at(-1)?.nouveaux ?? 0)
-    : (inscriptionsMois.at(-1)?.count ?? 0);
+    : (inscriptionsJours.at(-1)?.count ?? 0);
+
+  const showLoading = loading && apiMode;
+  const planRows = useMockDashboard ? mockPlanRepartition : plansApi;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" aria-busy={showLoading}>
       <div>
         <Breadcrumb items={adminCrumb("Tableau de bord")} />
         <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">
@@ -272,9 +372,6 @@ export default function Page() {
             {dashResult.error}
           </p>
         )}
-        {loading && apiMode && (
-          <p className="mt-2 text-sm text-gray-400">Chargement des statistiques…</p>
-        )}
       </div>
 
       {/* Section 1 — KPIs */}
@@ -285,14 +382,20 @@ export default function Page() {
           </div>
           <div className="mt-5">
             <span className="text-sm text-gray-500 dark:text-gray-400">Total livres</span>
-            <h4 className="mt-2 text-title-sm font-bold text-gray-800 dark:text-white/90">
-              {formatEntierFr(kpi.totalLivres)}
-            </h4>
-            <p className="mt-2 text-sm font-medium text-success-600 dark:text-success-500">
-              {kpi.livresAjoutes > 0
-                ? `+${kpi.livresAjoutes} livres`
-                : `${formatEntierFr(kpi.nbLectures7j)} lectures (7j)`}
-            </p>
+            {showLoading ? (
+              <KpiValuesSkeleton />
+            ) : (
+              <>
+                <h4 className="mt-2 text-title-sm font-bold text-gray-800 dark:text-white/90">
+                  {formatEntierFr(kpi.totalLivres)}
+                </h4>
+                <p className="mt-2 text-sm font-medium text-success-600 dark:text-success-500">
+                  {kpi.livresAjoutes > 0
+                    ? `+${kpi.livresAjoutes} livres`
+                    : `${formatEntierFr(kpi.nbLectures7j)} lectures (7j)`}
+                </p>
+              </>
+            )}
           </div>
         </AnimatedCard>
 
@@ -302,12 +405,18 @@ export default function Page() {
           </div>
           <div className="mt-5">
             <span className="text-sm text-gray-500 dark:text-gray-400">Utilisateurs</span>
-            <h4 className="mt-2 text-title-sm font-bold text-gray-800 dark:text-white/90">
-              {formatEntierFr(kpi.totalUtilisateurs)}
-            </h4>
-            <p className="mt-2 text-sm font-medium text-success-600 dark:text-success-500">
-              +{kpi.nouveauxUsersHebdo} inscriptions (7j)
-            </p>
+            {showLoading ? (
+              <KpiValuesSkeleton />
+            ) : (
+              <>
+                <h4 className="mt-2 text-title-sm font-bold text-gray-800 dark:text-white/90">
+                  {formatEntierFr(kpi.totalUtilisateurs)}
+                </h4>
+                <p className="mt-2 text-sm font-medium text-success-600 dark:text-success-500">
+                  +{kpi.nouveauxUsersHebdo} inscriptions (7j)
+                </p>
+              </>
+            )}
           </div>
         </AnimatedCard>
 
@@ -317,14 +426,20 @@ export default function Page() {
           </div>
           <div className="mt-5">
             <span className="text-sm text-gray-500 dark:text-gray-400">Abonnements actifs</span>
-            <h4 className="mt-2 text-title-sm font-bold text-gray-800 dark:text-white/90">
-              {formatEntierFr(kpi.abonnementsActifs)}
-            </h4>
-            <p className="mt-2 text-sm font-medium text-success-600 dark:text-success-500">
-              {useMockDashboard
-                ? `+${derniersNouveaux} nouveaux en mai`
-                : `${formatEntierFr(kpi.nbPaiementsSucces7j)} paiements succès (7j)`}
-            </p>
+            {showLoading ? (
+              <KpiValuesSkeleton />
+            ) : (
+              <>
+                <h4 className="mt-2 text-title-sm font-bold text-gray-800 dark:text-white/90">
+                  {formatEntierFr(kpi.abonnementsActifs)}
+                </h4>
+                <p className="mt-2 text-sm font-medium text-success-600 dark:text-success-500">
+                  {useMockDashboard
+                    ? `+${derniersNouveaux} nouveaux en mai`
+                    : `${formatEntierFr(kpi.nbPaiementsSucces7j)} paiements succès (7j)`}
+                </p>
+              </>
+            )}
           </div>
         </AnimatedCard>
 
@@ -334,12 +449,18 @@ export default function Page() {
           </div>
           <div className="mt-5">
             <span className="text-sm text-gray-500 dark:text-gray-400">Revenus du mois</span>
-            <h4 className="mt-2 text-title-sm font-bold text-gray-800 dark:text-white/90">
-              {formatXaf(kpi.revenusMonthly)}
-            </h4>
-            <p className="mt-2 text-sm font-medium text-warning-600 dark:text-orange-400">
-              Mois en cours
-            </p>
+            {showLoading ? (
+              <KpiValuesSkeleton />
+            ) : (
+              <>
+                <h4 className="mt-2 text-title-sm font-bold text-gray-800 dark:text-white/90">
+                  {formatXaf(kpi.revenusMonthly)}
+                </h4>
+                <p className="mt-2 text-sm font-medium text-warning-600 dark:text-orange-400">
+                  Mois en cours
+                </p>
+              </>
+            )}
           </div>
         </AnimatedCard>
       </StaggerGroup>
@@ -350,10 +471,12 @@ export default function Page() {
           <h3 className="mb-4 text-base font-semibold text-gray-800 dark:text-white/90">
             {useMockDashboard
               ? "Évolution des abonnements — 6 derniers mois"
-              : "Inscriptions — 6 derniers mois"}
+              : "Inscriptions — 7 derniers jours"}
           </h3>
           <div className="min-h-[320px] w-full">
-            {!useMockDashboard && inscriptionsMois.length === 0 ? (
+            {showLoading ? (
+              <ChartLoadingState />
+            ) : !useMockDashboard && inscriptionsJours.length === 0 ? (
               <p className="flex h-[320px] items-center justify-center text-sm text-gray-500">
                 Aucune inscription sur la période.
               </p>
@@ -361,7 +484,7 @@ export default function Page() {
               <ReactApexChart
                 options={chartOptions}
                 series={chartSeries}
-                type="area"
+                type="bar"
                 height={320}
               />
             )}
@@ -372,7 +495,18 @@ export default function Page() {
           <h3 className="animate-fade-in-up text-base font-semibold text-gray-800 dark:text-white/90 lg:px-1" style={{ animationDelay: "320ms" }}>
             Répartition des plans
           </h3>
-          {(useMockDashboard ? mockPlanRepartition : plansApi).map((row, planIdx) => {
+          {showLoading ? (
+            <>
+              <PlanCardSkeleton />
+              <PlanCardSkeleton />
+              <PlanCardSkeleton />
+            </>
+          ) : planRows.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-gray-200 px-4 py-8 text-center text-sm text-gray-500 dark:border-gray-700">
+              Aucun plan actif.
+            </p>
+          ) : (
+          planRows.map((row, planIdx) => {
             const planCode = (useMockDashboard
               ? (row as (typeof mockPlanRepartition)[0]).plan
               : (row as MockPlanTarifaire).code) as PlanType;
@@ -417,12 +551,31 @@ export default function Page() {
                 </div>
               </AnimatedCard>
             );
-          })}
+          })
+          )}
         </div>
       </div>
 
       {/* Section 4 — Top 5 livres (API) */}
-      {!useMockDashboard && kpi.topLivres.length > 0 && (
+      {showLoading ? (
+        <AnimatedCard className="p-5 md:p-6" delay={380}>
+          <h3 className="mb-4 text-base font-semibold text-gray-800 dark:text-white/90">
+            Top 5 des livres les plus lus
+          </h3>
+          <div className="space-y-3" aria-busy="true">
+            {[0, 1, 2, 3, 4].map((i) => (
+              <div key={i} className="flex items-center justify-between gap-4 py-2">
+                <div className="flex-1 space-y-2">
+                  <TextSkeleton className="h-4 w-3/4 max-w-xs" />
+                  <TextSkeleton className="h-3 w-24" />
+                </div>
+                <TextSkeleton className="h-4 w-16" />
+              </div>
+            ))}
+          </div>
+        </AnimatedCard>
+      ) : (
+      !useMockDashboard && kpi.topLivres.length > 0 && (
         <AnimatedCard className="p-5 md:p-6" delay={380}>
           <h3 className="mb-4 text-base font-semibold text-gray-800 dark:text-white/90">
             Top 5 des livres les plus lus
@@ -450,6 +603,7 @@ export default function Page() {
             ))}
           </ul>
         </AnimatedCard>
+      )
       )}
 
       {/* Section 5 — Activité récente */}
@@ -458,8 +612,18 @@ export default function Page() {
           Activité récente
         </h3>
         <ul className="space-y-4">
-          {useMockDashboard ? (
-          mockActiviteRecente.map((item, i) => {
+          {showLoading ? (
+            [0, 1, 2].map((i) => (
+              <li key={i} className="flex gap-3" aria-hidden>
+                <TextSkeleton className="h-10 w-10 shrink-0 rounded-xl" />
+                <div className="min-w-0 flex-1 space-y-2">
+                  <TextSkeleton className="h-4 w-full max-w-md" />
+                  <TextSkeleton className="h-3 w-20" />
+                </div>
+              </li>
+            ))
+          ) : activiteRecente.length > 0 ? (
+          activiteRecente.map((item, i) => {
             const styles: Record<
               string,
               { wrap: string; icon: string; Icon: typeof UserIcon }
@@ -470,31 +634,26 @@ export default function Page() {
                 Icon: UserIcon,
               },
               paiement: {
-                wrap: "bg-success-50 dark:bg-success-500/15",
-                icon: "text-success-600 dark:text-success-500",
+                wrap:
+                  item.statutPaiement === "EN_ATTENTE"
+                    ? "bg-warning-50 dark:bg-warning-500/15"
+                    : item.statutPaiement === "ECHEC"
+                      ? "bg-error-50 dark:bg-error-500/15"
+                      : "bg-success-50 dark:bg-success-500/15",
+                icon:
+                  item.statutPaiement === "EN_ATTENTE"
+                    ? "text-warning-600 dark:text-orange-400"
+                    : item.statutPaiement === "ECHEC"
+                      ? "text-error-600 dark:text-error-400"
+                      : "text-success-600 dark:text-success-500",
                 Icon: DollarLineIcon,
               },
-              commentaire: {
-                wrap: "bg-warning-50 dark:bg-warning-500/15",
-                icon: "text-warning-600 dark:text-orange-400",
-                Icon: ChatIcon,
-              },
-              livre: {
-                wrap: "bg-[#f5f3ff] dark:bg-violet-500/15",
-                icon: "text-violet-600 dark:text-violet-400",
-                Icon: DocsIcon,
-              },
-              badge: {
-                wrap: "bg-gray-100 dark:bg-white/5",
-                icon: "text-gray-700 dark:text-gray-300",
-                Icon: ShootingStarIcon,
-              },
             };
-            const s = styles[item.type] ?? styles.badge;
+            const s = styles[item.type] ?? styles.inscription;
             const Icon = s.Icon;
             return (
               <li
-                key={i}
+                key={item.id}
                 className="animate-fade-in-up flex gap-3"
                 style={{ animationDelay: `${480 + i * 60}ms` }}
               >
@@ -516,7 +675,7 @@ export default function Page() {
           })
           ) : (
             <li className="text-sm text-gray-500 dark:text-gray-400">
-              Aucune activité récente à afficher.
+              Aucune inscription ni paiement sur les 7 derniers jours.
             </li>
           )}
         </ul>
@@ -524,6 +683,9 @@ export default function Page() {
 
       {/* Section 5 — Alertes admin */}
       <StaggerGroup className="grid grid-cols-1 gap-4 md:grid-cols-2 md:gap-6" baseDelayMs={520} staggerMs={90}>
+        {showLoading ? (
+          <AlertCardSkeleton key="alert-skel-payments" />
+        ) : (
         <div className="admin-card admin-card-hover animate-fade-in-up flex flex-col gap-3 rounded-xl border border-warning-500 bg-warning-50 p-4 dark:border-warning-500/30 dark:bg-warning-500/15 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex gap-3">
             <div className="shrink-0 text-warning-500">
@@ -559,7 +721,10 @@ export default function Page() {
             Voir les paiements
           </Link>
         </div>
-
+        )}
+        {showLoading ? (
+          <AlertCardSkeleton key="alert-skel-comments" />
+        ) : (
         <div className="admin-card admin-card-hover animate-fade-in-up flex flex-col gap-3 rounded-xl border border-warning-500 bg-warning-50 p-4 dark:border-warning-500/30 dark:bg-warning-500/15 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex gap-3">
             <div className="shrink-0 text-warning-500">
@@ -595,6 +760,7 @@ export default function Page() {
             Modérer
           </Link>
         </div>
+        )}
       </StaggerGroup>
     </div>
   );

@@ -1,10 +1,10 @@
-import { mockPaiements, type MockPaiement } from "@/lib/mock-data";
+import type { MockPaiement } from "@/lib/mock-data";
 import { mapAdminPaymentToMock } from "@/lib/api/adapters";
 import type {
   AdminPaymentListItemApi,
   AdminPaymentsListResponse,
 } from "@/lib/api/admin-types";
-import { isAdminListApiReady } from "@/lib/api/admin-list-fetch";
+import { isAdminListApiReady , API_REQUIRED_MESSAGE } from "@/lib/api/admin-list-fetch";
 import { apiRequest, isApiConfigured } from "@/lib/api/client";
 import { unwrapListData } from "@/lib/api/pagination";
 import { ADMIN_ROUTES } from "@/lib/api/routes";
@@ -42,22 +42,14 @@ function writePayments(rows: MockPaiement[]): void {
 
 function setCache(rows: MockPaiement[]): void {
   apiCache = rows;
-  writePayments(rows);
 }
 
 function ensurePayments(): MockPaiement[] {
-  if (apiCache?.length) return apiCache;
-  let rows = readPayments();
-  if (rows.length === 0) {
-    rows = mockPaiements.map((p) => ({ ...p }));
-    writePayments(rows);
-  }
-  return rows;
+  return apiCache ?? [];
 }
 
 export function getAllPayments(): MockPaiement[] {
-  if (apiCache !== null) return apiCache;
-  return ensurePayments();
+  return apiCache ?? [];
 }
 
 export async function fetchPaymentsPersisted(options?: {
@@ -65,7 +57,7 @@ export async function fetchPaymentsPersisted(options?: {
   page?: number;
 }): Promise<MockPaiement[]> {
   if (!isApiConfigured()) {
-    return ensurePayments();
+    return [];
   }
   if (!isAdminListApiReady()) {
     return [];

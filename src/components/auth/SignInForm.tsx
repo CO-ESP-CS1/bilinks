@@ -9,10 +9,6 @@ import { BrandLogoAnimated } from "@/components/auth/BrandLogoAnimated";
 import { BRAND_NAME, BRAND_TAGLINE } from "@/config/brand";
 import { useAuth } from "@/context/AuthContext";
 import { isApiConfigured } from "@/lib/api/client";
-import {
-  DEFAULT_ADMIN_EMAIL,
-  DEFAULT_ADMIN_PASSWORD,
-} from "@/lib/auth/admin-auth";
 import { useRouter, useSearchParams } from "next/navigation";
 import React, { useEffect, useState } from "react";
 import toast from "react-hot-toast";
@@ -24,9 +20,7 @@ export default function SignInForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
   const apiMode = isApiConfigured();
-  const [email, setEmail] = useState(
-    apiMode ? "" : DEFAULT_ADMIN_EMAIL
-  );
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -78,27 +72,13 @@ export default function SignInForm() {
 
         {!apiMode && (
           <div
-            className="animate-fade-in-up mb-8 rounded-xl border border-amber-200/60 bg-amber-50/50 p-4 dark:border-amber-500/20 dark:bg-amber-500/5"
+            className="animate-fade-in-up mb-8 rounded-xl border border-red-200/60 bg-red-50/50 p-4 dark:border-red-500/20 dark:bg-red-500/5"
             style={{ animationDelay: "0.45s" }}
           >
-            <div className="flex items-start gap-3">
-              <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-500/20">
-                <svg className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
-                </svg>
-              </div>
-              <div className="text-sm">
-                <p className="font-medium text-gray-800 dark:text-white/90">
-                  Mode démo (sans API)
-                </p>
-                <p className="mt-1.5 font-mono text-xs text-gray-600 dark:text-gray-400">
-                  {DEFAULT_ADMIN_EMAIL}
-                </p>
-                <p className="font-mono text-xs text-gray-600 dark:text-gray-400">
-                  {DEFAULT_ADMIN_PASSWORD}
-                </p>
-              </div>
-            </div>
+            <p className="text-sm font-medium text-red-800 dark:text-red-300">
+              API non configurée — définissez NEXT_PUBLIC_API_BASE_URL dans
+              .env.local
+            </p>
           </div>
         )}
 

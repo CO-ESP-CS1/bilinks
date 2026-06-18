@@ -19,20 +19,6 @@ export type SubscribePlan = {
 
 export const SUBSCRIBE_PLANS: SubscribePlan[] = [
   {
-    id: "HEBDOMADAIRE",
-    name: "Hebdomadaire",
-    price: 1500,
-    period: "/semaine",
-    badge: "7 jours",
-    accent: "indigo",
-    features: [
-      "Catalogue académique",
-      "Lecture hors-ligne",
-      "7 jours d'accès",
-      "Support réactif",
-    ],
-  },
-  {
     id: "MENSUEL",
     name: "Mensuel",
     price: 4900,
@@ -65,8 +51,30 @@ export const SUBSCRIBE_PLANS: SubscribePlan[] = [
   },
 ];
 
+/** Plans historiques non proposés à l'abonnement (rétrocompat affichage). */
+const LEGACY_SUBSCRIBE_PLANS: SubscribePlan[] = [
+  {
+    id: "HEBDOMADAIRE",
+    name: "Hebdomadaire",
+    price: 1500,
+    period: "/semaine",
+    badge: "7 jours",
+    accent: "indigo",
+    features: [
+      "Catalogue académique",
+      "Lecture hors-ligne",
+      "7 jours d'accès",
+      "Support réactif",
+    ],
+  },
+];
+
 export function getPlanById(id: string | null | undefined): SubscribePlan | null {
-  return SUBSCRIBE_PLANS.find((p) => p.id === id) ?? null;
+  return (
+    SUBSCRIBE_PLANS.find((p) => p.id === id) ??
+    LEGACY_SUBSCRIBE_PLANS.find((p) => p.id === id) ??
+    null
+  );
 }
 
 export function formatXaf(amount: number): string {

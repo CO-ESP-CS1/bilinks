@@ -211,6 +211,7 @@ function ModifierLivreForm({
   );
   const [langue, setLangue] = useState(livre.langue);
   const [isbn, setIsbn] = useState(livre.isbn ?? "");
+  const [maisonEdition, setMaisonEdition] = useState(livre.maisonEdition ?? "");
   const [annee, setAnnee] = useState(
     livre.anneePublication > 0 ? String(livre.anneePublication) : ""
   );
@@ -252,6 +253,7 @@ function ModifierLivreForm({
       anneePublication: parseOptionalInt(annee),
       nombrePages: parseOptionalInt(nbPages),
       isbn: isbn.trim() || undefined,
+      maisonEdition: maisonEdition.trim() || undefined,
       resume: resume.trim() || undefined,
       fichier: fichierLivre ?? undefined,
       is_downloadable: typeLivre === "INTERNE" ? isDownloadable : undefined,
@@ -289,6 +291,7 @@ function ModifierLivreForm({
     annee,
     nbPages,
     isbn,
+    maisonEdition,
     resume,
     fichierLivre,
     isDownloadable,
@@ -420,6 +423,17 @@ function ModifierLivreForm({
               <p className="mt-1.5 text-xs text-error-500">{errors.langue}</p>
             )}
           </div>
+        </div>
+
+        <div>
+          <Label htmlFor="edit-maison-edition">Maison d&apos;édition</Label>
+          <Input
+            id="edit-maison-edition"
+            type="text"
+            placeholder="Optionnel"
+            value={maisonEdition}
+            onChange={(e) => setMaisonEdition(e.target.value)}
+          />
         </div>
 
         {apiMode && typeLivre === "EXTERNE" && (

@@ -1,10 +1,10 @@
-import { mockCommentaires, type MockCommentaire } from "@/lib/mock-data";
+import type { MockCommentaire } from "@/lib/mock-data";
 import { mapAdminCommentToMock } from "@/lib/api/adapters";
 import type {
   AdminCommentListItemApi,
   AdminCommentsListResponse,
 } from "@/lib/api/admin-types";
-import { isAdminListApiReady } from "@/lib/api/admin-list-fetch";
+import { isAdminListApiReady , API_REQUIRED_MESSAGE } from "@/lib/api/admin-list-fetch";
 import { apiRequest, isApiConfigured } from "@/lib/api/client";
 import { messageFromApiError } from "@/lib/api/errors";
 import { unwrapListData } from "@/lib/api/pagination";
@@ -43,22 +43,14 @@ function writeComments(rows: MockCommentaire[]): void {
 
 function setCache(rows: MockCommentaire[]): void {
   apiCache = rows;
-  writeComments(rows);
 }
 
 function ensureComments(): MockCommentaire[] {
-  if (apiCache !== null) return apiCache;
-  let rows = readComments();
-  if (rows.length === 0) {
-    rows = mockCommentaires.map((c) => ({ ...c }));
-    writeComments(rows);
-  }
-  return rows;
+  return apiCache ?? [];
 }
 
 export function getAllComments(): MockCommentaire[] {
-  if (apiCache !== null) return apiCache;
-  return ensureComments();
+  return apiCache ?? [];
 }
 
 export async function fetchCommentsPersisted(options?: {
@@ -66,7 +58,7 @@ export async function fetchCommentsPersisted(options?: {
   page?: number;
 }): Promise<MockCommentaire[]> {
   if (!isApiConfigured()) {
-    return ensureComments();
+    return [];
   }
   if (!isAdminListApiReady()) {
     return [];
@@ -120,6 +112,42 @@ export async function moderateCommentPersisted(
   if (idx < 0) return { ok: false, error: "Commentaire introuvable." };
   const next = [...rows];
   next[idx] = { ...next[idx]!, statut: "MODERE" };
+  setCache(next);
+  return { ok: true };
+}
+
+export async function republishCommentPersisted(
+  id: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (isApiConfigured()) {
+    try {
+      await apiRequest(ADMIN_ROUTES.comments.republish(id), {
+        method: "PATCH",
+      });
+      const next = getAllComments().map((c) =>
+        c.id === id ? { ...c, statut: "PUBLIE" as const } : c
+      );
+      setCache(next);
+      return { ok: true };
+    } catch (err) {
+      return {
+        ok: false,
+        error: messageFromApiError(err, "Republication impossible."),
+      };
+    }
+  }
+
+  const rows = ensureComments();
+  const idx = rows.findIndex((c) => c.id === id);
+  if (idx < 0) return { ok: false, error: "Commentaire introuvable." };
+  if (rows[idx]!.statut !== "MODERE") {
+    return {
+      ok: false,
+      error: "Seuls les commentaires modérés peuvent être republiés.",
+    };
+  }
+  const next = [...rows];
+  next[idx] = { ...next[idx]!, statut: "PUBLIE" };
   setCache(next);
   return { ok: true };
 }

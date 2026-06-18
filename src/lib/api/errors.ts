@@ -8,6 +8,8 @@ export const GENERIC_ERROR_MESSAGE =
   "Une erreur inattendue s'est produite. Réessayez dans un instant.";
 
 const EXACT_MESSAGE_MAP: Record<string, string> = {
+  "Mot de passe actuel incorrect.": "Mot de passe actuel incorrect.",
+  "Mot de passe modifié avec succès.": "Mot de passe modifié avec succès.",
   "Erreur API.": GENERIC_ERROR_MESSAGE,
   "API non configurée (NEXT_PUBLIC_API_BASE_URL).":
     "Le serveur n'est pas configuré. Contactez l'administrateur technique.",

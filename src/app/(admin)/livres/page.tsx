@@ -46,12 +46,111 @@ import {
   validateCreateBookInput,
   type TypeLivre,
 } from "@/lib/admin/book-payload";
-import { formatCatalogPages, formatCatalogYear } from "@/lib/catalog-display";
+import { formatCatalogPages, formatCatalogYear, formatMaisonEdition } from "@/lib/catalog-display";
+import { useAdminPageSearch } from "@/context/AdminPageSearchContext";
 
 type StatutFiltre = "tous" | "publie" | "archive";
 type TypeLivreFiltre = "tous" | TypeLivreCatalogue;
 type DownloadableFiltre = "tous" | "oui" | "non";
 type VueMode = "grille" | "tableau";
+
+const filterSelectClass =
+  "h-10 min-w-[10rem] rounded-lg border border-gray-300 bg-white px-3 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 disabled:cursor-not-allowed disabled:opacity-60 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:[color-scheme:dark] dark:focus:border-brand-800";
+
+const filterOptionClass =
+  "bg-white text-gray-900 dark:bg-gray-900 dark:text-white";
+
+function TextSkeleton({ className = "" }: { className?: string }) {
+  return (
+    <div
+      className={`animate-pulse rounded bg-gray-200 dark:bg-white/10 ${className}`}
+      aria-hidden
+    />
+  );
+}
+
+function StatsRowSkeleton() {
+  return (
+    <div
+      className="hidden items-center gap-4 rounded-xl border border-gray-100 bg-white px-4 py-2.5 dark:border-white/[0.06] dark:bg-white/[0.02] sm:flex"
+      aria-busy="true"
+      aria-label="Chargement des statistiques"
+    >
+      {[0, 1, 2].map((i) => (
+        <React.Fragment key={i}>
+          {i > 0 && (
+            <div className="h-8 w-px bg-gray-100 dark:bg-white/[0.06]" />
+          )}
+          <div className="space-y-1.5">
+            <TextSkeleton className="h-3 w-14" />
+            <TextSkeleton className="h-6 w-10" />
+          </div>
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
+function LivreCardSkeleton() {
+  return (
+    <div className="flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white dark:border-white/[0.06] dark:bg-white/[0.02]">
+      <TextSkeleton className="aspect-[2/3] w-full rounded-none" />
+      <div className="space-y-2 p-4">
+        <TextSkeleton className="h-4 w-full max-w-[90%]" />
+        <TextSkeleton className="h-3 w-2/3" />
+        <div className="flex gap-2 pt-1">
+          <TextSkeleton className="h-6 w-16 rounded-full" />
+          <TextSkeleton className="h-6 w-20 rounded-full" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function LivresGrilleSkeleton() {
+  return (
+    <div
+      className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4"
+      aria-busy="true"
+      aria-label="Chargement du catalogue"
+    >
+      {Array.from({ length: 8 }).map((_, i) => (
+        <LivreCardSkeleton key={i} />
+      ))}
+    </div>
+  );
+}
+
+function LivresTableSkeleton() {
+  return (
+    <div
+      className="overflow-hidden rounded-2xl border border-gray-100 bg-white dark:border-white/[0.06] dark:bg-white/[0.02]"
+      aria-busy="true"
+      aria-label="Chargement du tableau"
+    >
+      <div className="border-b border-gray-100 px-5 py-3 dark:border-white/[0.06]">
+        <div className="flex gap-6">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <TextSkeleton key={i} className="h-4 w-20" />
+          ))}
+        </div>
+      </div>
+      <div className="divide-y divide-gray-100 dark:divide-white/[0.06]">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-4 px-5 py-4">
+            <TextSkeleton className="h-14 w-10 shrink-0 rounded" />
+            <div className="min-w-0 flex-1 space-y-2">
+              <TextSkeleton className="h-4 w-48 max-w-full" />
+              <TextSkeleton className="h-3 w-32" />
+            </div>
+            <TextSkeleton className="hidden h-4 w-16 sm:block" />
+            <TextSkeleton className="hidden h-4 w-12 md:block" />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
 
 export default function LivresPage() {
   const router = useRouter();
@@ -64,7 +163,11 @@ export default function LivresPage() {
 
   const apiMode = isApiConfigured();
 
-  const [search, setSearch] = useState("");
+  const { query: search, setQuery: setSearch } = useAdminPageSearch({
+    placeholder: apiMode
+      ? "Rechercher par titre…"
+      : "Rechercher un titre ou auteur…",
+  });
   const [statutFiltre, setStatutFiltre] = useState<StatutFiltre>("tous");
   const [typeLivreFiltre, setTypeLivreFiltre] = useState<TypeLivreFiltre>("tous");
   const [downloadableFiltre, setDownloadableFiltre] =
@@ -72,7 +175,10 @@ export default function LivresPage() {
   const [categorieFiltre, setCategorieFiltre] = useState<string>("tous");
   const [livresPage, setLivresPage] = useState(1);
   const [livresMeta, setLivresMeta] = useState<PaginationMeta | null>(null);
-  const [loadingLivres, setLoadingLivres] = useState(false);
+  const [loadingLivres, setLoadingLivres] = useState(true);
+  const [loadingReferentiels, setLoadingReferentiels] = useState(true);
+  const [modalReferentielsLoading, setModalReferentielsLoading] = useState(false);
+  const [referentielsTick, setReferentielsTick] = useState(0);
   const [modalOuvert, setModalOuvert] = useState(false);
   const [modalKey, setModalKey] = useState(0);
   const [archiveCible, setArchiveCible] = useState<MockLivre | null>(null);
@@ -118,20 +224,35 @@ export default function LivresPage() {
     livresPage,
   ]);
 
-  const refreshReferentiels = useCallback(async () => {
-    await Promise.all([
-      fetchCategoriesPersisted(),
-      fetchAuteursPersisted(),
-      fetchLibrariesPersisted({ statut: "ACTIVE", type: "INTERNE" }),
-    ]);
-    setCategories(getAllCategories());
-    setAuteurs(getAllAuteurs());
-  }, []);
+  const loadReferentiels = useCallback(
+    async (scope: "page" | "modal" | "silent" = "page") => {
+      if (scope === "page") setLoadingReferentiels(true);
+      if (scope === "modal") setModalReferentielsLoading(true);
+      try {
+        await Promise.all([
+          fetchCategoriesPersisted(),
+          fetchAuteursPersisted(),
+          fetchLibrariesPersisted({ statut: "ACTIVE", type: "INTERNE" }),
+        ]);
+        setCategories(getAllCategories());
+        setAuteurs(getAllAuteurs());
+        setReferentielsTick((t) => t + 1);
+      } finally {
+        if (scope === "page") setLoadingReferentiels(false);
+        if (scope === "modal") setModalReferentielsLoading(false);
+      }
+    },
+    []
+  );
+
+  const refreshReferentiels = useCallback(
+    () => loadReferentiels("page"),
+    [loadReferentiels]
+  );
 
   const refresh = useCallback(async () => {
-    await refreshReferentiels();
-    await loadLivres();
-  }, [loadLivres, refreshReferentiels]);
+    await Promise.all([loadReferentiels("page"), loadLivres()]);
+  }, [loadLivres, loadReferentiels]);
 
   useEffect(() => {
     void refresh();
@@ -139,6 +260,7 @@ export default function LivresPage() {
 
   useEffect(() => {
     if (!apiMode) return;
+    setLivresPage(1);
     const timer = setTimeout(() => {
       void loadLivres();
     }, search.trim() ? 300 : 0);
@@ -164,7 +286,7 @@ export default function LivresPage() {
       getAllLibraries().filter(
         (b) => b.type === "INTERNE" && b.statut === "ACTIVE"
       ),
-    [livres]
+    [referentielsTick]
   );
 
   const multiCategoriesOptions = useMemo(
@@ -253,20 +375,27 @@ export default function LivresPage() {
     return { total, publies, archives };
   }, [livres]);
 
-  const ouvrirModal = async () => {
-    await refreshReferentiels();
+  const showPageSkeleton = apiMode && loadingLivres && livres.length === 0;
+  const listRefreshing = apiMode && loadingLivres && livres.length > 0;
+
+  const ouvrirModal = () => {
+    setModalKey((k) => k + 1);
+    setModalOuvert(true);
+    if (apiMode) {
+      void loadReferentiels(
+        categories.length === 0 && auteurs.length === 0 ? "modal" : "silent"
+      );
+    }
     if (apiMode && getAllAuteurs().length === 0) {
       toast.error(
         "Aucun auteur disponible. Créez-en un dans Auteurs ou vérifiez votre session.",
         { duration: 5000 }
       );
     }
-    setModalKey((k) => k + 1);
-    setModalOuvert(true);
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" aria-busy={showPageSkeleton}>
       <Breadcrumb items={adminCrumb("Livres")} />
 
       {/* Header avec statistiques */}
@@ -280,6 +409,9 @@ export default function LivresPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {showPageSkeleton ? (
+            <StatsRowSkeleton />
+          ) : (
           <div className="hidden items-center gap-4 rounded-xl border border-gray-100 bg-white px-4 py-2.5 dark:border-white/[0.06] dark:bg-white/[0.02] sm:flex">
             <StatCard label="Total" value={stats.total} />
             <div className="h-8 w-px bg-gray-100 dark:bg-white/[0.06]" />
@@ -287,6 +419,7 @@ export default function LivresPage() {
             <div className="h-8 w-px bg-gray-100 dark:bg-white/[0.06]" />
             <StatCard label="Archivés" value={stats.archives} color="warning" />
           </div>
+          )}
           <button
             onClick={ouvrirModal}
             className="group relative inline-flex items-center gap-2.5 overflow-hidden rounded-xl bg-brand-500 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-500/25 transition-all duration-300 hover:bg-brand-600 hover:shadow-xl hover:shadow-brand-500/30 active:scale-[0.97]"
@@ -302,27 +435,6 @@ export default function LivresPage() {
       {/* Barre de filtres */}
       <div className="flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-white/[0.06] dark:bg-white/[0.02] lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-center">
-          <div className="relative min-w-[220px] flex-1">
-            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5">
-              <svg className="h-4.5 w-4.5 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-              </svg>
-            </div>
-            <input
-              type="text"
-              placeholder={
-                apiMode
-                  ? "Rechercher par titre…"
-                  : "Rechercher un titre ou auteur…"
-              }
-              value={search}
-              onChange={(e) => {
-                setSearch(e.target.value);
-                setLivresPage(1);
-              }}
-              className="h-10 w-full rounded-lg border-0 bg-gray-50 pl-10 pr-4 text-sm text-gray-800 ring-1 ring-gray-200 placeholder:text-gray-400 focus:bg-white focus:ring-2 focus:ring-brand-500/30 dark:bg-white/[0.04] dark:text-white/90 dark:ring-white/[0.08] dark:placeholder:text-gray-500 dark:focus:ring-brand-500/40"
-            />
-          </div>
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={statutFiltre}
@@ -330,11 +442,17 @@ export default function LivresPage() {
                 setStatutFiltre(e.target.value as StatutFiltre);
                 setLivresPage(1);
               }}
-              className="h-10 rounded-lg border-0 bg-gray-50 px-3 text-sm text-gray-700 ring-1 ring-gray-200 focus:ring-2 focus:ring-brand-500/30 dark:bg-white/[0.04] dark:text-white/80 dark:ring-white/[0.08]"
+              className={filterSelectClass}
             >
-              <option value="tous">Tous les statuts</option>
-              <option value="publie">Publié</option>
-              <option value="archive">Archivé</option>
+              <option value="tous" className={filterOptionClass}>
+                Tous les statuts
+              </option>
+              <option value="publie" className={filterOptionClass}>
+                Publié
+              </option>
+              <option value="archive" className={filterOptionClass}>
+                Archivé
+              </option>
             </select>
             <select
               value={typeLivreFiltre}
@@ -342,11 +460,17 @@ export default function LivresPage() {
                 setTypeLivreFiltre(e.target.value as TypeLivreFiltre);
                 setLivresPage(1);
               }}
-              className="h-10 rounded-lg border-0 bg-gray-50 px-3 text-sm text-gray-700 ring-1 ring-gray-200 focus:ring-2 focus:ring-brand-500/30 dark:bg-white/[0.04] dark:text-white/80 dark:ring-white/[0.08]"
+              className={filterSelectClass}
             >
-              <option value="tous">Tous types</option>
-              <option value="INTERNE">Interne</option>
-              <option value="EXTERNE">Externe</option>
+              <option value="tous" className={filterOptionClass}>
+                Tous types
+              </option>
+              <option value="INTERNE" className={filterOptionClass}>
+                Interne
+              </option>
+              <option value="EXTERNE" className={filterOptionClass}>
+                Externe
+              </option>
             </select>
             <select
               value={downloadableFiltre}
@@ -354,20 +478,31 @@ export default function LivresPage() {
                 setDownloadableFiltre(e.target.value as DownloadableFiltre);
                 setLivresPage(1);
               }}
-              className="h-10 rounded-lg border-0 bg-gray-50 px-3 text-sm text-gray-700 ring-1 ring-gray-200 focus:ring-2 focus:ring-brand-500/30 dark:bg-white/[0.04] dark:text-white/80 dark:ring-white/[0.08]"
+              className={filterSelectClass}
             >
-              <option value="tous">Téléchargeable</option>
-              <option value="oui">Oui</option>
-              <option value="non">Non</option>
+              <option value="tous" className={filterOptionClass}>
+                Téléchargeable
+              </option>
+              <option value="oui" className={filterOptionClass}>
+                Oui
+              </option>
+              <option value="non" className={filterOptionClass}>
+                Non
+              </option>
             </select>
             <select
               value={categorieFiltre}
               onChange={(e) => setCategorieFiltre(e.target.value)}
-              className="h-10 rounded-lg border-0 bg-gray-50 px-3 text-sm text-gray-700 ring-1 ring-gray-200 focus:ring-2 focus:ring-brand-500/30 dark:bg-white/[0.04] dark:text-white/80 dark:ring-white/[0.08]"
+              disabled={loadingReferentiels}
+              className={filterSelectClass}
             >
-              <option value="tous">Toutes catégories</option>
+              <option value="tous" className={filterOptionClass}>
+                Toutes catégories
+              </option>
               {categoriesOptions.map((nom) => (
-                <option key={nom} value={nom}>{nom}</option>
+                <option key={nom} value={nom} className={filterOptionClass}>
+                  {nom}
+                </option>
               ))}
             </select>
           </div>
@@ -395,8 +530,8 @@ export default function LivresPage() {
       </div>
 
       {/* Contenu principal */}
-      {loadingLivres ? (
-        <p className="text-sm text-gray-500 dark:text-gray-400">Chargement…</p>
+      {showPageSkeleton ? (
+        vue === "grille" ? <LivresGrilleSkeleton /> : <LivresTableSkeleton />
       ) : livresFiltres.length === 0 ? (
         <div className="rounded-2xl border border-gray-100 bg-white p-12 dark:border-white/[0.06] dark:bg-white/[0.02]">
           <EmptyState
@@ -405,21 +540,31 @@ export default function LivresPage() {
             onReset={reinitialiserFiltres}
           />
         </div>
-      ) : vue === "grille" ? (
-        <GrilleView
-          livres={livresFiltres}
-          onVoir={(id) => router.push(`/admin/livres/${id}`)}
-          onEditer={(id) => router.push(`/admin/livres/${id}/modifier`)}
-          onArchiver={setArchiveCible}
-        />
       ) : (
-        <TableauView
-          livres={livresFiltres}
-          apiMode={apiMode}
-          onVoir={(id) => router.push(`/admin/livres/${id}`)}
-          onEditer={(id) => router.push(`/admin/livres/${id}/modifier`)}
-          onArchiver={setArchiveCible}
-        />
+        <div
+          className={
+            listRefreshing
+              ? "pointer-events-none opacity-60 transition-opacity"
+              : "transition-opacity"
+          }
+        >
+          {vue === "grille" ? (
+            <GrilleView
+              livres={livresFiltres}
+              onVoir={(id) => router.push(`/admin/livres/${id}`)}
+              onEditer={(id) => router.push(`/admin/livres/${id}/modifier`)}
+              onArchiver={setArchiveCible}
+            />
+          ) : (
+            <TableauView
+              livres={livresFiltres}
+              apiMode={apiMode}
+              onVoir={(id) => router.push(`/admin/livres/${id}`)}
+              onEditer={(id) => router.push(`/admin/livres/${id}/modifier`)}
+              onArchiver={setArchiveCible}
+            />
+          )}
+        </div>
       )}
 
       {apiMode && livresMeta && livresMeta.total_pages > 1 && (
@@ -479,12 +624,13 @@ export default function LivresPage() {
           multiAuteursOptions={multiAuteursOptions}
           multiCategoriesOptions={multiCategoriesOptions}
           multiBibliothequesOptions={multiBibliothequesOptions}
+          referentielsLoading={modalReferentielsLoading}
           onSuccess={async (created) => {
-            await refresh();
             setModalOuvert(false);
             toast.success(
               `Livre créé (${created.statut}) — ${created.titre} [${created.type_livre}]`
             );
+            await loadLivres();
           }}
         />
       </Modal>
@@ -653,6 +799,7 @@ function TableauView({
                   "Type",
                   "Catégorie",
                   "Langue",
+                  "Maison d'édition",
                   apiMode ? "Lectures" : "Année",
                   apiMode ? "Téléchargeable" : "Pages",
                   "Statut",
@@ -719,6 +866,9 @@ function TableauView({
                   </TableCell>
                   <TableCell className="px-5 py-4 text-sm text-gray-600 dark:text-gray-400">
                     {livre.langue}
+                  </TableCell>
+                  <TableCell className="px-5 py-4 text-sm text-gray-600 dark:text-gray-400">
+                    {formatMaisonEdition(livre.maisonEdition)}
                   </TableCell>
                   <TableCell className="px-5 py-4 text-sm tabular-nums text-gray-600 dark:text-gray-400">
                     {apiMode
@@ -808,11 +958,13 @@ function AjouterLivreForm({
   multiAuteursOptions,
   multiCategoriesOptions,
   multiBibliothequesOptions,
+  referentielsLoading = false,
   onSuccess,
 }: {
   multiAuteursOptions: { value: string; text: string; selected: boolean }[];
   multiCategoriesOptions: { value: string; text: string; selected: boolean }[];
   multiBibliothequesOptions: { value: string; text: string; selected: boolean }[];
+  referentielsLoading?: boolean;
   onSuccess: (created: {
     id: string;
     titre: string;
@@ -823,10 +975,11 @@ function AjouterLivreForm({
   const [titre, setTitre] = useState("");
   const [auteurIds, setAuteurIds] = useState<string[]>([]);
   const [isbn, setIsbn] = useState("");
+  const [maisonEdition, setMaisonEdition] = useState("");
   const [resume, setResume] = useState("");
   const [fichierLivre, setFichierLivre] = useState<File | null>(null);
   const [couverturePreview, setCouverturePreview] = useState<string | null>(null);
-  const [langue, setLangue] = useState("");
+  const [langue, setLangue] = useState("Français");
   const [annee, setAnnee] = useState("");
   const [nbPages, setNbPages] = useState("");
   const [categoriesIds, setCategoriesIds] = useState<string[]>([]);
@@ -844,12 +997,13 @@ function AjouterLivreForm({
       auteurIds,
       categorieIds: categoriesIds,
       bibliothequeIds: bibliothequesIds,
-      langue,
+      langue: langue.trim() || "Français",
       type_livre: typeLivre,
       urlExterneLivre: urlExterneLivre.trim() || undefined,
       anneePublication: annee === "" ? null : Number(annee),
       nombrePages: nbPages === "" ? null : Number(nbPages),
       fichier: fichierLivre ?? undefined,
+      maisonEdition: maisonEdition.trim() || undefined,
     };
     const storeError = validateCreateBookInput(payload, apiMode);
     const next: FormErrors = {};
@@ -866,6 +1020,8 @@ function AjouterLivreForm({
     if (storeError?.match(/ISBN/i)) next.isbn = storeError;
     if (storeError?.match(/année/i)) next.annee = storeError;
     if (storeError?.match(/pages/i)) next.pages = storeError;
+    if (storeError?.match(/titre/i)) next.titre = storeError;
+    if (storeError?.match(/maison/i)) next.titre = storeError;
     setErrors(next);
     return !storeError;
   }, [
@@ -881,6 +1037,7 @@ function AjouterLivreForm({
     nbPages,
     categoriesIds,
     isbn,
+    maisonEdition,
   ]);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -898,7 +1055,7 @@ function AjouterLivreForm({
       auteurIds,
       categorieIds: categoriesIds,
       bibliothequeIds: bibliothequesIds,
-      langue,
+      langue: langue.trim() || "Français",
       type_livre: typeLivre,
       urlExterneLivre: urlExterneLivre.trim() || undefined,
       anneePublication: annee === "" ? null : Number(annee),
@@ -906,6 +1063,7 @@ function AjouterLivreForm({
       couvertureFile,
       fichier: typeLivre === "INTERNE" ? fichierLivre ?? undefined : undefined,
       isbn: isbn.trim() || undefined,
+      maisonEdition: maisonEdition.trim() || undefined,
       resume: resume.trim() || undefined,
       is_downloadable: typeLivre === "INTERNE" ? isDownloadable : undefined,
     });
@@ -1024,6 +1182,10 @@ function AjouterLivreForm({
                 label="Auteur(s) *"
                 options={multiAuteursOptions}
                 onChange={setAuteurIds}
+                disabled={referentielsLoading}
+                placeholder={
+                  referentielsLoading ? "Chargement…" : "Choisir un ou plusieurs auteurs"
+                }
               />
               {errors.auteurs && (
                 <p className="mt-1.5 text-xs text-error-500">{errors.auteurs}</p>
@@ -1062,7 +1224,8 @@ function AjouterLivreForm({
                   Langue{apiMode ? "" : " *"}
                 </Label>
                 <Select
-                  placeholder={apiMode ? "Français" : "Choisir"}
+                  placeholder="Français"
+                  defaultValue="Français"
                   options={langueOptions}
                   onChange={(v) => setLangue(v)}
                 />
@@ -1070,6 +1233,17 @@ function AjouterLivreForm({
                   <p className="mt-1.5 text-xs text-error-500">{errors.langue}</p>
                 )}
               </div>
+            </div>
+
+            <div>
+              <Label htmlFor="livre-maison-edition">Maison d&apos;édition</Label>
+              <Input
+                id="livre-maison-edition"
+                type="text"
+                placeholder="Ex. Éditions Jeunes Africains (optionnel)"
+                value={maisonEdition}
+                onChange={(e) => setMaisonEdition(e.target.value)}
+              />
             </div>
         </div>
 
@@ -1169,7 +1343,23 @@ function AjouterLivreForm({
               label="Catégorie(s)"
               options={multiCategoriesOptions}
               onChange={setCategoriesIds}
+              disabled={referentielsLoading}
+              placeholder={
+                referentielsLoading
+                  ? "Chargement des catégories…"
+                  : multiCategoriesOptions.length === 0
+                    ? "Aucune catégorie — créez-en une d'abord"
+                    : "Choisir une ou plusieurs catégories"
+              }
             />
+            {!referentielsLoading && multiCategoriesOptions.length === 0 && (
+              <p className="mt-1.5 text-xs text-warning-600 dark:text-warning-400">
+                Aucune catégorie chargée.{" "}
+                <Link href="/admin/categories" className="font-medium underline">
+                  Créer une catégorie
+                </Link>
+              </p>
+            )}
           </div>
 
           {(!apiMode || typeLivre === "INTERNE") && (
@@ -1178,6 +1368,12 @@ function AjouterLivreForm({
                 label="Bibliothèque(s)"
                 options={multiBibliothequesOptions}
                 onChange={setBibliothequesIds}
+                disabled={referentielsLoading}
+                placeholder={
+                  referentielsLoading
+                    ? "Chargement…"
+                    : "Choisir une ou plusieurs bibliothèques"
+                }
               />
               {apiMode && (
                 <p className="mt-1 text-[11px] text-gray-400">
@@ -1196,13 +1392,36 @@ function AjouterLivreForm({
         <div className="flex items-center justify-end gap-3 border-t border-gray-100 pt-6 dark:border-white/[0.06]">
           <button
             type="submit"
-            disabled={submitting}
+            disabled={submitting || referentielsLoading}
             className="inline-flex items-center gap-2 rounded-xl bg-brand-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-500/25 transition-all duration-200 hover:bg-brand-600 hover:shadow-xl hover:shadow-brand-500/30 active:scale-[0.97] disabled:opacity-60"
           >
+            {submitting ? (
+              <svg
+                className="h-4 w-4 animate-spin"
+                fill="none"
+                viewBox="0 0 24 24"
+                aria-hidden
+              >
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                />
+              </svg>
+            ) : (
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
             </svg>
-            Enregistrer le livre
+            )}
+            {submitting ? "Création en cours…" : "Enregistrer le livre"}
           </button>
         </div>
       </form>

@@ -34,6 +34,7 @@ export interface MockLivre {
   couvertureUrl: string;
   resume?: string;
   urlExterneLivre?: string;
+  maisonEdition?: string | null;
 }
 
 export interface MockAuteur {

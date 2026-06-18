@@ -11,7 +11,7 @@
 
 Configurer au minimum:
 
-- `NEXT_PUBLIC_API_URL=https://bibliotech-api-iu9o.onrender.com`
+- `NEXT_PUBLIC_API_URL=https://backend-butp.onrender.com`
 
 Optionnel:
 

@@ -1,10 +1,10 @@
-import { mockAbonnements, type MockAbonnement } from "@/lib/mock-data";
+import type { MockAbonnement } from "@/lib/mock-data";
 import { mapAdminSubscriptionToMockAbonnement } from "@/lib/api/adapters";
 import type {
   AdminSubscriptionListItemApi,
   AdminSubscriptionsListResponse,
 } from "@/lib/api/admin-types";
-import { isAdminListApiReady } from "@/lib/api/admin-list-fetch";
+import { isAdminListApiReady , API_REQUIRED_MESSAGE } from "@/lib/api/admin-list-fetch";
 import { apiRequest, isApiConfigured } from "@/lib/api/client";
 import { messageFromApiError } from "@/lib/api/errors";
 import { unwrapListData } from "@/lib/api/pagination";
@@ -44,25 +44,14 @@ function writeSubscriptions(rows: MockAbonnement[]): void {
 
 function setCache(rows: MockAbonnement[]): void {
   apiCache = rows;
-  writeSubscriptions(rows);
 }
 
 function ensureSubscriptions(): MockAbonnement[] {
-  if (apiCache !== null) return apiCache;
-  let rows = readSubscriptions();
-  if (rows.length === 0) {
-    rows = mockAbonnements.map((a) => ({
-      ...a,
-      deletedAt: a.deletedAt ?? null,
-    }));
-    writeSubscriptions(rows);
-  }
-  return rows;
+  return apiCache ?? [];
 }
 
 export function getAllSubscriptions(): MockAbonnement[] {
-  if (apiCache !== null) return apiCache;
-  return ensureSubscriptions();
+  return apiCache ?? [];
 }
 
 export async function fetchSubscriptionsPersisted(options?: {
@@ -71,7 +60,7 @@ export async function fetchSubscriptionsPersisted(options?: {
   page?: number;
 }): Promise<MockAbonnement[]> {
   if (!isApiConfigured()) {
-    return ensureSubscriptions();
+    return [];
   }
   if (!isAdminListApiReady()) {
     return [];
@@ -136,5 +125,83 @@ export async function cancelSubscriptionPersisted(
   const next = [...rows];
   next[idx] = { ...next[idx]!, statut: "ANNULE" };
   setCache(next);
+  return { ok: true };
+}
+
+export async function suspendSubscriptionPersisted(
+  id: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (isApiConfigured()) {
+    try {
+      await apiRequest(ADMIN_ROUTES.subscriptions.suspend(id), {
+        method: "PATCH",
+      });
+      const next = getAllSubscriptions().map((a) =>
+        a.id === id ? { ...a, statut: "SUSPENDU" as const } : a
+      );
+      setCache(next);
+      return { ok: true };
+    } catch (err) {
+      return {
+        ok: false,
+        error: messageFromApiError(err, "Suspension impossible."),
+      };
+    }
+  }
+
+  const rows = ensureSubscriptions();
+  const idx = rows.findIndex((a) => a.id === id);
+  if (idx < 0) return { ok: false, error: "Abonnement introuvable." };
+  if (rows[idx]!.statut !== "ACTIF") {
+    return {
+      ok: false,
+      error: "Seul un abonnement actif peut être suspendu.",
+    };
+  }
+  const next = [...rows];
+  next[idx] = { ...next[idx]!, statut: "SUSPENDU" };
+  setCache(next);
+  writeSubscriptions(next);
+  return { ok: true };
+}
+
+export async function activateSubscriptionPersisted(
+  id: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (isApiConfigured()) {
+    try {
+      await apiRequest(ADMIN_ROUTES.subscriptions.activate(id), {
+        method: "PATCH",
+      });
+      const next = getAllSubscriptions().map((a) =>
+        a.id === id ? { ...a, statut: "ACTIF" as const } : a
+      );
+      setCache(next);
+      return { ok: true };
+    } catch (err) {
+      return {
+        ok: false,
+        error: messageFromApiError(err, "Réactivation impossible."),
+      };
+    }
+  }
+
+  const rows = ensureSubscriptions();
+  const idx = rows.findIndex((a) => a.id === id);
+  if (idx < 0) return { ok: false, error: "Abonnement introuvable." };
+  const row = rows[idx]!;
+  if (row.statut === "ANNULE") {
+    return {
+      ok: false,
+      error: "Un abonnement annulé ne peut pas être réactivé.",
+    };
+  }
+  if (row.statut === "ACTIF") {
+    return { ok: false, error: "Cet abonnement est déjà actif." };
+  }
+  const next = [...rows];
+  next[idx] = { ...row, statut: "ACTIF" };
+  setCache(next);
+  writeSubscriptions(next);
   return { ok: true };
 }

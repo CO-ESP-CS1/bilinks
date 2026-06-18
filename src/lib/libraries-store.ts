@@ -1,6 +1,6 @@
-import { mockBibliotheques, type MockBibliotheque } from "@/lib/mock-data";
+import type { MockBibliotheque } from "@/lib/mock-data";
 import { mapAdminLibraryToMock } from "@/lib/api/adapters";
-import { isAdminListApiReady, isDemoDataOnly } from "@/lib/api/admin-list-fetch";
+import { isAdminListApiReady , API_REQUIRED_MESSAGE } from "@/lib/api/admin-list-fetch";
 import type {
   AdminLibrariesListResponse,
   AdminLibraryAddBooksResponse,
@@ -53,26 +53,14 @@ function normalize(b: MockBibliotheque): MockBibliotheque {
 
 function setCache(rows: MockBibliotheque[]): void {
   apiCache = rows;
-  writeLibraries(rows);
 }
 
 function ensureLibraries(): MockBibliotheque[] {
-  if (!isDemoDataOnly()) {
-    return (apiCache ?? readLibraries().map(normalize));
-  }
-  if (apiCache?.length) return apiCache;
-  let rows = readLibraries().map(normalize);
-  if (rows.length === 0) {
-    rows = mockBibliotheques.map((b) => ({ ...b, deletedAt: b.deletedAt ?? null }));
-    writeLibraries(rows);
-  }
-  return rows;
+  return apiCache ?? [];
 }
 
 export function getAllLibraries(includeDeleted = false): MockBibliotheque[] {
-  const list = isDemoDataOnly()
-    ? (apiCache ?? ensureLibraries())
-    : (apiCache ?? readLibraries().map(normalize));
+  const list = apiCache ?? [];
   return includeDeleted ? list : list.filter((b) => !isSoftDeleted(b.deletedAt));
 }
 
@@ -87,7 +75,7 @@ export async function fetchLibrariesPersisted(options?: {
   limit?: number;
 }): Promise<MockBibliotheque[]> {
   if (!isApiConfigured()) {
-    return ensureLibraries();
+    return [];
   }
   if (!isAdminListApiReady()) {
     return [];
@@ -192,7 +180,7 @@ export async function createLibraryPersisted(input: {
     }
   }
 
-  return createLibraryLocal(input);
+  return { ok: false, error: API_REQUIRED_MESSAGE };
 }
 
 export async function updateLibraryPersisted(
@@ -260,7 +248,7 @@ export async function updateLibraryPersisted(
     }
   }
 
-  return updateLibraryLocal(id, patch);
+  return { ok: false, error: API_REQUIRED_MESSAGE };
 }
 
 export async function archiveLibraryPersisted(

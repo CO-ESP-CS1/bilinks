@@ -1,6 +1,6 @@
 ﻿import { mockCategories, type MockCategorie } from "@/lib/mock-data";
 import { mapAdminCategorieToMock } from "@/lib/api/adapters";
-import { isAdminListApiReady, isDemoDataOnly } from "@/lib/api/admin-list-fetch";
+import { isAdminListApiReady , API_REQUIRED_MESSAGE } from "@/lib/api/admin-list-fetch";
 import { apiRequest, isApiConfigured } from "@/lib/api/client";
 import type {
   AdminCategoriesListResponse,
@@ -55,26 +55,14 @@ function normalize(c: MockCategorie): MockCategorie {
 
 function setCache(categories: MockCategorie[]): void {
   apiCache = categories;
-  writeCategories(categories);
 }
 
 export function ensureCategories(): MockCategorie[] {
-  if (!isDemoDataOnly()) {
-    return apiCache ?? readCategories().map(normalize);
-  }
-  if (apiCache?.length) return apiCache;
-  let categories = readCategories().map(normalize);
-  if (categories.length === 0) {
-    categories = mockCategories.map((c) => ({ ...c, deletedAt: c.deletedAt ?? null }));
-    writeCategories(categories);
-  }
-  return categories;
+  return apiCache ?? [];
 }
 
 export function getAllCategories(includeDeleted = false): MockCategorie[] {
-  const list = isDemoDataOnly()
-    ? (apiCache ?? ensureCategories())
-    : (apiCache ?? readCategories().map(normalize));
+  const list = apiCache ?? [];
   return includeDeleted ? list : list.filter((c) => !isSoftDeleted(c.deletedAt));
 }
 
@@ -108,7 +96,7 @@ export async function fetchCategoriesPersisted(options?: {
   limit?: number;
 }): Promise<MockCategorie[]> {
   if (!isApiConfigured()) {
-    return ensureCategories();
+    return [];
   }
   if (!isAdminListApiReady()) {
     return [];
@@ -189,7 +177,7 @@ export async function createCategoryPersisted(input: {
   if (isCategoryNameTaken(nom)) {
     return { ok: false, error: "Ce nom est déjà utilisé." };
   }
-  return createCategoryLocal(input);
+  return { ok: false, error: API_REQUIRED_MESSAGE };
 }
 
 export async function updateCategoryPersisted(
@@ -237,7 +225,7 @@ export async function updateCategoryPersisted(
     }
   }
 
-  return updateCategoryLocal(id, patch);
+  return { ok: false, error: API_REQUIRED_MESSAGE };
 }
 
 export async function softDeleteCategoryPersisted(
@@ -270,10 +258,7 @@ export async function softDeleteCategoryPersisted(
     }
   }
 
-  if (!softDeleteCategoryLocal(id)) {
-    return { ok: false, error: "Catégorie introuvable." };
-  }
-  return { ok: true, deleted_at: softDeleteTimestamp() };
+  return { ok: false, error: API_REQUIRED_MESSAGE };
 }
 
 /** @deprecated Préférer createCategoryPersisted */
@@ -281,7 +266,7 @@ export function createCategory(input: {
   nom: string;
   description: string;
 }): { ok: true; categorie: MockCategorie } | { ok: false; error: string } {
-  return createCategoryLocal(input);
+  return { ok: false, error: API_REQUIRED_MESSAGE };
 }
 
 function createCategoryLocal(input: {
@@ -311,7 +296,7 @@ export function updateCategory(
   id: string,
   patch: Pick<MockCategorie, "nom" | "description">
 ): { ok: true; categorie: MockCategorie } | { ok: false; error: string } {
-  return updateCategoryLocal(id, patch);
+  return { ok: false, error: API_REQUIRED_MESSAGE };
 }
 
 function updateCategoryLocal(
@@ -343,7 +328,8 @@ function updateCategoryLocal(
 
 /** @deprecated Préférer softDeleteCategoryPersisted — l’API ne propose pas de restore */
 export function softDeleteCategory(id: string): boolean {
-  return softDeleteCategoryLocal(id);
+  void id;
+  return false;
 }
 
 function softDeleteCategoryLocal(id: string): boolean {

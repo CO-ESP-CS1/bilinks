@@ -56,8 +56,8 @@ export default function SupportPage() {
         </h2>
         <ul className="mt-4 list-inside list-disc space-y-2 text-sm text-gray-600 dark:text-gray-400">
           <li>
-            Les données affichées sont des <strong>jeux de démo</strong> tant que
-            le back-end n&apos;est pas connecté.
+            Les données proviennent du backend lorsque{" "}
+            <code>NEXT_PUBLIC_API_BASE_URL</code> est configuré.
           </li>
           <li>
             Pour la modération, privilégiez la page &quot;Commentaires&quot; du

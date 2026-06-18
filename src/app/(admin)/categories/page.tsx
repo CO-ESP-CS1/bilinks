@@ -21,6 +21,7 @@ import Label from "@/components/form/Label";
 import Input from "@/components/form/input/InputField";
 import TextArea from "@/components/form/input/TextArea";
 import { FolderIcon } from "@/icons";
+import { useAdminPageSearch } from "@/context/AdminPageSearchContext";
 
 function formatLivres(n: number): string {
   return `${new Intl.NumberFormat("fr-FR").format(n)} livre${n > 1 ? "s" : ""}`;
@@ -32,8 +33,9 @@ export default function CategoriesPage() {
   const [loading, setLoading] = useState(true);
   const apiMode = isApiConfigured();
 
-  const [search, setSearch] = useState("");
-  const [champRechercheKey, setChampRechercheKey] = useState(0);
+  const { query: search, setQuery: setSearch } = useAdminPageSearch({
+    placeholder: "Rechercher par nom ou description…",
+  });
 
   const refresh = useCallback(
     async (q?: string) => {
@@ -78,8 +80,7 @@ export default function CategoriesPage() {
 
   const reinitialiserFiltres = useCallback(() => {
     setSearch("");
-    setChampRechercheKey((k) => k + 1);
-  }, []);
+  }, [setSearch]);
 
   const showToast = useCallback((msg: string) => {
     toast.success(msg);
@@ -132,18 +133,6 @@ export default function CategoriesPage() {
       {loading && (
         <p className="text-sm text-gray-500 dark:text-gray-400">Chargement…</p>
       )}
-
-      <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/[0.05] dark:bg-white/[0.03]">
-        <Label htmlFor="search-cat">Rechercher</Label>
-        <Input
-          key={champRechercheKey}
-          id="search-cat"
-          type="text"
-          placeholder="Nom ou description…"
-          className="mt-2"
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
 
       {listeFiltree.length === 0 ? (
         <EmptyState
@@ -226,14 +215,12 @@ export default function CategoriesPage() {
             <>
               « {supprimerCible.nom} » sera supprimée. Les livres liés restent
               en base.
-              {apiMode ? (
+              {apiMode && (
                 <>
                   {" "}
                   Impossible si un défi <strong>actif</strong> référence cette
                   catégorie.
                 </>
-              ) : (
-                " Vous pourrez la restaurer en mode démo."
               )}
             </>
           ) : null

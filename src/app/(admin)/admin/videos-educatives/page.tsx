@@ -23,6 +23,7 @@ import {
   type AdminChannel,
   type SyncResult,
 } from "@/lib/youtube-store";
+import { useAdminPageSearch } from "@/context/AdminPageSearchContext";
 
 // ─── Formatters ───────────────────────────────────────────────────────────────
 
@@ -359,7 +360,9 @@ export default function VideosEducativesPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [toggleCible, setToggleCible] = useState<AdminChannel | null>(null);
   const [deleteCible, setDeleteCible] = useState<AdminChannel | null>(null);
-  const [search, setSearch] = useState("");
+  const { query: search, setQuery: setSearch } = useAdminPageSearch({
+    placeholder: "Rechercher une chaîne YouTube…",
+  });
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -547,25 +550,13 @@ export default function VideosEducativesPage() {
       {/* Bannière non configuré */}
       {!apiMode && (
         <div className="rounded-xl border border-warning-500/30 bg-warning-50 p-4 text-sm text-warning-700 dark:border-warning-500/20 dark:bg-warning-500/10 dark:text-warning-300">
-          <strong>Mode démo</strong> — configurez{" "}
+          <strong>API non configurée</strong> — configurez{" "}
           <code className="rounded bg-warning-100 px-1 dark:bg-warning-500/20">
             NEXT_PUBLIC_API_BASE_URL
           </code>{" "}
           pour piloter les chaînes via l&apos;API.
         </div>
       )}
-
-      {/* Barre de recherche */}
-      <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-white/[0.05] dark:bg-white/[0.03]">
-        <Label htmlFor="yt-search">Rechercher une chaîne</Label>
-        <Input
-          id="yt-search"
-          type="text"
-          placeholder="Nom, identifiant ou description…"
-          className="mt-2"
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
 
       {/* Contenu */}
       {loading ? (

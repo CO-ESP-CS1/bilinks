@@ -486,7 +486,7 @@ function ApiHistoriqueTable({
                       type="button"
                       title="Supprimer"
                       onClick={() => onDelete(n)}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg ring-1 ring-gray-200 hover:text-error-500 dark:ring-gray-700"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 ring-1 ring-gray-200 transition hover:bg-error-50 hover:text-error-500 dark:text-gray-400 dark:ring-gray-700 dark:hover:bg-error-500/10 dark:hover:text-error-400"
                     >
                       <TrashBinIcon className="size-4" />
                     </button>
@@ -826,7 +826,7 @@ export default function NotificationsPage() {
                         <div className="flex flex-wrap gap-1.5">
                           <button type="button" title="Modifier"
                             onClick={() => { setEdition(n); setModalMode("modifier"); }}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg ring-1 ring-gray-200 hover:text-brand-500 dark:ring-gray-700">
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 ring-1 ring-gray-200 transition hover:bg-gray-100 hover:text-brand-500 dark:text-gray-400 dark:ring-gray-700 dark:hover:bg-white/5 dark:hover:text-brand-400">
                             <PencilIcon className="size-4" />
                           </button>
                           {n.statut === "BROUILLON" && (
@@ -848,7 +848,7 @@ export default function NotificationsPage() {
                             </>
                           )}
                           <button type="button" title="Supprimer" onClick={() => setSupprimerCible(n)}
-                            className="flex h-8 w-8 items-center justify-center rounded-lg ring-1 ring-gray-200 hover:text-error-500 dark:ring-gray-700">
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-gray-500 ring-1 ring-gray-200 transition hover:bg-error-50 hover:text-error-500 dark:text-gray-400 dark:ring-gray-700 dark:hover:bg-error-500/10 dark:hover:text-error-400">
                             <TrashBinIcon className="size-4" />
                           </button>
                         </div>

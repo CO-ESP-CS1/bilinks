@@ -24,6 +24,7 @@ export function StaggerGroup({
 
   const enhanced = childArray.map((child, i) => {
     if (!React.isValidElement(child)) return child;
+    if (child.type === React.Fragment) return child;
 
     const validIndex = childArray
       .slice(0, i)

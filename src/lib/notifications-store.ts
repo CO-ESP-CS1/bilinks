@@ -6,7 +6,7 @@ import type {
   AdminNotificationsListResponse,
 } from "@/lib/api/admin-types";
 import { ADMIN_NOTIFICATION_TYPES } from "@/lib/api/admin-types";
-import { isAdminListApiReady } from "@/lib/api/admin-list-fetch";
+import { isAdminListApiReady , API_REQUIRED_MESSAGE } from "@/lib/api/admin-list-fetch";
 import { apiRequest, isApiConfigured } from "@/lib/api/client";
 import { messageFromApiError, SESSION_REQUIRED_MESSAGE } from "@/lib/api/errors";
 import { ADMIN_ROUTES } from "@/lib/api/routes";

@@ -2,7 +2,7 @@ import { mockDefis, type MockDefi, type StatutDefi, type TypeDefi } from "@/lib/
 
 import { mapAdminChallengeToMock } from "@/lib/api/adapters";
 
-import { isAdminListApiReady, isDemoDataOnly } from "@/lib/api/admin-list-fetch";
+import { isAdminListApiReady , API_REQUIRED_MESSAGE } from "@/lib/api/admin-list-fetch";
 
 import type {
 
@@ -114,52 +114,18 @@ function normalize(d: MockDefi): MockDefi {
 
 
 function setCache(rows: MockDefi[]): void {
-
   apiCache = rows;
-
-  writeChallenges(rows);
-
 }
 
 
 
 function ensureChallenges(): MockDefi[] {
-
-  if (!isDemoDataOnly()) {
-
-    return (apiCache ?? readChallenges().map(normalize));
-
-  }
-
-  if (apiCache?.length) return apiCache;
-
-  let rows = readChallenges().map(normalize);
-
-  if (rows.length === 0) {
-
-    rows = mockDefis.map((d) => ({ ...d, deletedAt: d.deletedAt ?? null }));
-
-    writeChallenges(rows);
-
-  }
-
-  return rows;
-
+  return apiCache ?? [];
 }
-
-
 
 export function getAllChallenges(): MockDefi[] {
-
-  return isDemoDataOnly()
-
-    ? (apiCache ?? ensureChallenges())
-
-    : (apiCache ?? readChallenges().map(normalize));
-
+  return apiCache ?? [];
 }
-
-
 
 export async function fetchChallengesPersisted(options?: {
 
@@ -172,9 +138,7 @@ export async function fetchChallengesPersisted(options?: {
 }): Promise<MockDefi[]> {
 
   if (!isApiConfigured()) {
-
-    return ensureChallenges();
-
+    return [];
   }
 
   if (!isAdminListApiReady()) {

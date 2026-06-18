@@ -58,6 +58,7 @@ export function mapAdminBookToMockLivre(row: AdminBookListItemApi): MockLivre {
     couvertureUrl: row.couverture_url ?? "",
     resume: row.resume ?? undefined,
     urlExterneLivre: row.url_externe_livre ?? undefined,
+    maisonEdition: row.maison_edition ?? null,
   };
 }
 

@@ -163,6 +163,7 @@ export type AdminBookListItemApi = {
   note_moyenne?: number | null;
   type_livre?: "INTERNE" | "EXTERNE";
   is_downloadable?: boolean;
+  maison_edition?: string | null;
   auteurs?: Array<{ id: string; nom: string; prenom: string }>;
   categories?: Array<{ id: string; nom: string }>;
 };
@@ -494,6 +495,29 @@ export type AdminStatsSearchTermsApi = {
   }>;
   top_sans_resultats: Array<{ terme: string; nb_recherches: number }>;
 };
+
+export type AdminActivityTypeApi = "INSCRIPTION" | "PAIEMENT";
+
+export type AdminStatsActivityItemApi = {
+  type: AdminActivityTypeApi;
+  date: string;
+  auth_id?: string;
+  email?: string;
+  nom?: string;
+  prenom?: string;
+  auth_provider?: string;
+  statut?: string;
+  id?: string;
+  montant?: number;
+  devise?: string;
+  operateur?: string | null;
+  plan?: string;
+};
+
+export type AdminStatsActivityResponse =
+  PaginatedResponse<AdminStatsActivityItemApi>;
+
+export type AdminStatsActivityPeriode = "7j" | "30j" | "90j";
 
 // --- Notifications in-app ---
 export const ADMIN_NOTIFICATION_TYPES = [

@@ -6,15 +6,14 @@ import toast from "react-hot-toast";
 import { Breadcrumb, adminCrumb } from "@/components/Breadcrumb";
 import { EmptyState } from "@/components/EmptyState";
 import {
-  mockKPIs,
   type MockUtilisateur,
   type RoleUser,
 } from "@/lib/mock-data";
 import { isApiConfigured } from "@/lib/api/client";
 import type { PaginationMeta } from "@/lib/api/pagination";
 import { useAuth } from "@/context/AuthContext";
+import { useAdminPageSearch } from "@/context/AdminPageSearchContext";
 import {
-  createUserPersisted,
   deleteUserPersisted,
   fetchUsersPersisted,
   toggleUserBanPersisted,
@@ -71,6 +70,73 @@ type DialogCible = {
 
 const selectBaseClass =
   "h-11 w-full rounded-lg border border-gray-300 bg-transparent px-4 py-2.5 text-sm text-gray-800 shadow-theme-xs focus:border-brand-300 focus:outline-hidden focus:ring-3 focus:ring-brand-500/10 dark:border-gray-700 dark:bg-gray-900 dark:text-white/90 dark:focus:border-brand-800";
+
+function TextSkeleton({ className = "" }: { className?: string }) {
+  return (
+    <div
+      className={`animate-pulse rounded bg-gray-200 dark:bg-white/10 ${className}`}
+      aria-hidden
+    />
+  );
+}
+
+function UsersStatsSkeleton() {
+  return (
+    <div
+      className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2"
+      aria-busy="true"
+      aria-label="Chargement des statistiques"
+    >
+      {[0, 1, 2, 3].map((i) => (
+        <React.Fragment key={i}>
+          {i > 0 && (
+            <span className="text-gray-300 dark:text-gray-600" aria-hidden>
+              |
+            </span>
+          )}
+          <TextSkeleton className="h-4 w-28" />
+        </React.Fragment>
+      ))}
+    </div>
+  );
+}
+
+function UsersTableSkeleton() {
+  return (
+    <div
+      className="overflow-x-auto"
+      aria-busy="true"
+      aria-label="Chargement des utilisateurs"
+    >
+      <div className="min-w-[1100px]">
+        <div className="flex gap-3 border-b border-gray-100 px-4 py-3 dark:border-white/[0.05]">
+          {Array.from({ length: 9 }).map((_, i) => (
+            <TextSkeleton key={i} className="h-4 w-14" />
+          ))}
+        </div>
+        <div className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3 px-4 py-3">
+              <TextSkeleton className="h-10 w-10 shrink-0 rounded-full" />
+              <TextSkeleton className="h-4 w-28" />
+              <TextSkeleton className="h-4 w-36" />
+              <TextSkeleton className="h-4 w-24" />
+              <TextSkeleton className="h-6 w-16 rounded-full" />
+              <TextSkeleton className="h-6 w-14 rounded-full" />
+              <TextSkeleton className="h-4 w-10" />
+              <TextSkeleton className="h-6 w-20 rounded-full" />
+              <div className="flex gap-1">
+                <TextSkeleton className="h-9 w-9 rounded-lg" />
+                <TextSkeleton className="h-9 w-9 rounded-lg" />
+                <TextSkeleton className="h-9 w-9 rounded-lg" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 type UserFormState = {
   prenom: string;
@@ -195,22 +261,23 @@ function UserFormFields({
 export default function UtilisateursPage() {
   const router = useRouter();
   const [utilisateurs, setUtilisateurs] = useState<MockUtilisateur[]>([]);
-  const [search, setSearch] = useState("");
+  const apiMode = isApiConfigured();
+  const { query: search, setQuery: setSearch } = useAdminPageSearch({
+    placeholder: "Rechercher par nom ou e-mail…",
+  });
   const [filtreRole, setFiltreRole] = useState<FiltreRole>("tous");
   const [filtreStatut, setFiltreStatut] = useState<FiltreStatut>("tous");
   const [filtreAbonnement, setFiltreAbonnement] =
     useState<FiltreAbonnement>("tous");
   const [usersPage, setUsersPage] = useState(1);
   const [usersMeta, setUsersMeta] = useState<PaginationMeta | null>(null);
-  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [loadingUsers, setLoadingUsers] = useState(true);
 
-  const [modalCreate, setModalCreate] = useState(false);
   const [editCible, setEditCible] = useState<MockUtilisateur | null>(null);
   const [dialogCible, setDialogCible] = useState<DialogCible | null>(null);
   const [raisonBan, setRaisonBan] = useState("");
   const [form, setForm] = useState<UserFormState>(emptyForm);
 
-  const apiMode = isApiConfigured();
   const { admin: currentAdmin } = useAuth();
 
   const recharger = useCallback(async () => {
@@ -269,7 +336,7 @@ export default function UtilisateursPage() {
     setFiltreRole("tous");
     setFiltreStatut("tous");
     setFiltreAbonnement("tous");
-  }, []);
+  }, [setSearch]);
 
   const stats = useMemo(() => {
     const actifs = utilisateurs.filter((u) => u.statut === "ACTIF").length;
@@ -305,6 +372,9 @@ export default function UtilisateursPage() {
     });
   }, [utilisateurs, search, filtreRole, filtreStatut, filtreAbonnement, apiMode]);
 
+  const showPageSkeleton = apiMode && loadingUsers && utilisateurs.length === 0;
+  const listRefreshing = apiMode && loadingUsers && utilisateurs.length > 0;
+
   const ouvrirEdit = (u: MockUtilisateur) => {
     setEditCible(u);
     setForm({
@@ -321,6 +391,7 @@ export default function UtilisateursPage() {
 
   const soumettreForm = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!editCible) return;
     const points = parseInt(form.points, 10) || 0;
     const payload = {
       prenom: form.prenom,
@@ -333,23 +404,13 @@ export default function UtilisateursPage() {
       abonnementActif: form.abonnementActif,
     };
 
-    if (editCible) {
-      const result = await updateUserPersisted(editCible.id, payload);
-      if (!result.ok) {
-        toast.error(result.error);
-        return;
-      }
-      toast.success("Utilisateur mis à jour.");
-      setEditCible(null);
-    } else {
-      const result = await createUserPersisted(payload);
-      if (!result.ok) {
-        toast.error(result.error);
-        return;
-      }
-      toast.success("Utilisateur créé.");
-      setModalCreate(false);
+    const result = await updateUserPersisted(editCible.id, payload);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
     }
+    toast.success("Utilisateur mis à jour.");
+    setEditCible(null);
     setForm(emptyForm);
     await recharger();
   };
@@ -398,13 +459,16 @@ export default function UtilisateursPage() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" aria-busy={showPageSkeleton}>
       <Breadcrumb items={adminCrumb("Utilisateurs")} />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">
             Gestion des utilisateurs
           </h1>
+          {showPageSkeleton ? (
+            <UsersStatsSkeleton />
+          ) : (
           <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2 text-sm text-gray-600 dark:text-gray-400">
             <span>
               <span className="font-medium text-gray-800 dark:text-white/90">
@@ -434,34 +498,16 @@ export default function UtilisateursPage() {
               {stats.admins}
             </span>
           </div>
+          )}
           <p className="mt-1 text-xs text-gray-500">
             {apiMode
-              ? "Recherche, filtres et modération des comptes utilisateurs."
-              : `Plateforme (indicateurs) : ${formatEntier(mockKPIs.totalUtilisateurs)} utilisateurs — mode local.`}
+              ? "Recherche, filtres et modération des comptes inscrits via l'application."
+              : "Configurez NEXT_PUBLIC_API_BASE_URL pour charger les utilisateurs depuis le backend."}
           </p>
         </div>
-        <Button
-          disabled={apiMode}
-          onClick={() => {
-            setForm(emptyForm);
-            setModalCreate(true);
-          }}
-        >
-          Nouvel utilisateur
-        </Button>
       </div>
 
       <div className="flex flex-col gap-4 rounded-xl border border-gray-200 bg-white p-4 dark:border-white/[0.05] dark:bg-white/[0.03] lg:flex-row lg:flex-wrap lg:items-end">
-        <div className="min-w-[200px] flex-1">
-          <Label htmlFor="search-users">Rechercher</Label>
-          <Input
-            id="search-users"
-            type="text"
-            placeholder="Nom ou e-mail…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
         <div className="w-full min-w-[160px] sm:w-44">
           <Label htmlFor="filtre-role">Rôle</Label>
           <select
@@ -509,7 +555,9 @@ export default function UtilisateursPage() {
       </div>
 
       <div className="overflow-hidden rounded-xl border border-gray-200 bg-white dark:border-white/[0.05] dark:bg-white/[0.03]">
-        {listeFiltree.length === 0 ? (
+        {showPageSkeleton ? (
+          <UsersTableSkeleton />
+        ) : !loadingUsers && listeFiltree.length === 0 ? (
           <div className="p-6">
             <EmptyState
               icon={<GroupIcon className="size-7" />}
@@ -518,6 +566,13 @@ export default function UtilisateursPage() {
             />
           </div>
         ) : (
+          <div
+            className={
+              listRefreshing
+                ? "pointer-events-none opacity-60 transition-opacity"
+                : "transition-opacity"
+            }
+          >
           <div className="overflow-x-auto">
             <div className="min-w-[1100px]">
               <Table>
@@ -676,6 +731,7 @@ export default function UtilisateursPage() {
               </Table>
             </div>
           </div>
+          </div>
         )}
       </div>
 
@@ -707,40 +763,6 @@ export default function UtilisateursPage() {
           </div>
         </div>
       )}
-
-      <Modal
-        isOpen={modalCreate}
-        onClose={() => {
-          setModalCreate(false);
-          setForm(emptyForm);
-        }}
-        className="max-w-lg p-6 sm:p-8"
-      >
-        <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">
-          Nouvel utilisateur
-        </h2>
-        <form onSubmit={soumettreForm} className="mt-6 space-y-4">
-          <UserFormFields form={form} setForm={setForm} />
-          <div className="flex justify-end gap-3 border-t border-gray-100 pt-4 dark:border-gray-800">
-            <button
-              type="button"
-              onClick={() => {
-                setModalCreate(false);
-                setForm(emptyForm);
-              }}
-              className="rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 dark:border-gray-700 dark:text-gray-300"
-            >
-              Annuler
-            </button>
-            <button
-              type="submit"
-              className="rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600"
-            >
-              Créer
-            </button>
-          </div>
-        </form>
-      </Modal>
 
       <Modal
         isOpen={editCible != null}
