@@ -2,7 +2,7 @@ import { getApiBearerToken } from "@/lib/api/auth-token";
 import { isApiConfigured } from "@/lib/api/client";
 
 export const API_REQUIRED_MESSAGE =
-  "Le serveur API n'est pas configuré (NEXT_PUBLIC_API_BASE_URL).";
+  "Le serveur API n'est pas configuré (NEXT_PUBLIC_API_URL).";
 
 export const SESSION_REQUIRED_MESSAGE =
   "Session expirée ou absente. Reconnectez-vous via /signin.";

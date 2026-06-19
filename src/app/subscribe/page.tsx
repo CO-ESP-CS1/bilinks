@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { PlanCard } from "@/components/subscribe/PlanCard";
@@ -18,29 +18,46 @@ export default function SubscribePage() {
   const { setPlan } = useSubscription();
   const [plans, setPlans] = useState<SubscribePlan[]>(SUBSCRIBE_PLANS);
   const [loading, setLoading] = useState(!SUBSCRIBE_MOCK);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (SUBSCRIBE_MOCK) return;
+  const loadPlans = useCallback(() => {
+    setLoading(true);
+    setLoadError(null);
 
     fetchSubscribePlans()
       .then((apiPlans) => {
-        setPlans(
-          SUBSCRIBE_PLANS.map((plan) => {
-            const api = apiPlans.find((item) => item.plan === plan.id);
-            if (!api) return plan;
-            return {
-              ...plan,
-              apiId: api.id,
-              price: Number(api.prix),
-            };
-          })
-        );
+        const merged = SUBSCRIBE_PLANS.map((plan) => {
+          const api = apiPlans.find((item) => item.plan === plan.id);
+          if (!api) return plan;
+          return {
+            ...plan,
+            apiId: api.id,
+            price: Number(api.prix),
+          };
+        });
+        setPlans(merged);
+
+        const missing = merged.filter((plan) => !plan.apiId);
+        if (missing.length > 0) {
+          setLoadError(
+            "Certaines formules sont indisponibles sur le serveur. Réessayez dans un instant."
+          );
+        }
       })
-      .catch(() => {
-        /* garde les plans statiques si l'API est indisponible */
+      .catch((err: unknown) => {
+        setLoadError(
+          err instanceof Error
+            ? err.message
+            : "Impossible de charger les formules depuis le serveur."
+        );
       })
       .finally(() => setLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (SUBSCRIBE_MOCK) return;
+    loadPlans();
+  }, [loadPlans]);
 
   const handleSelect = (plan: SubscribePlan) => {
     if (!SUBSCRIBE_MOCK && !plan.apiId) {
@@ -71,6 +88,22 @@ export default function SubscribePage() {
             Lecture illimitée · Hors-ligne · Sans publicité
           </p>
         </div>
+
+        {loadError && (
+          <div
+            role="alert"
+            className="mx-auto mt-6 max-w-3xl rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+          >
+            <p>{loadError}</p>
+            <button
+              type="button"
+              onClick={loadPlans}
+              className="mt-2 font-semibold text-red-900 underline"
+            >
+              Réessayer
+            </button>
+          </div>
+        )}
 
         <motion.div
           variants={staggerContainer}

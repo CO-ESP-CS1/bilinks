@@ -26,6 +26,7 @@ export function PlanCard({ plan, selected, disabled, onSelect }: PlanCardProps) 
       onClick={onSelect}
       className={cn(
         "relative flex h-full w-full flex-col rounded-2xl p-4 text-left transition-shadow duration-200 sm:p-6",
+        disabled && "cursor-not-allowed opacity-55",
         isHighlight
           ? "border border-[#003494]/20 bg-[#004AC6] text-white shadow-[0_8px_32px_rgba(0,74,198,0.22)]"
           : "border border-zinc-200 bg-white shadow-[0_1px_3px_rgba(0,0,0,0.04),0_4px_16px_rgba(0,0,0,0.05)] hover:shadow-[0_4px_24px_rgba(0,74,198,0.09),0_1px_3px_rgba(0,0,0,0.04)]",

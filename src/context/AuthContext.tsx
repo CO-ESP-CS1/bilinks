@@ -159,7 +159,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return {
         ok: false as const,
         error:
-          "API non configurée. Définissez NEXT_PUBLIC_API_BASE_URL dans .env.local.",
+          "API non configurée. Définissez NEXT_PUBLIC_API_URL dans les variables d'environnement.",
       };
     }
 

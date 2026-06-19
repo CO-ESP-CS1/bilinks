@@ -76,8 +76,8 @@ export default function SignInForm() {
             style={{ animationDelay: "0.45s" }}
           >
             <p className="text-sm font-medium text-red-800 dark:text-red-300">
-              API non configurée — définissez NEXT_PUBLIC_API_BASE_URL dans
-              .env.local
+              API non configurée — définissez NEXT_PUBLIC_API_URL (ou
+              NEXT_PUBLIC_API_BASE_URL) dans les variables d&apos;environnement
             </p>
           </div>
         )}
