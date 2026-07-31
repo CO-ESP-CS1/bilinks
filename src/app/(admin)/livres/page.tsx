@@ -192,6 +192,10 @@ export default function LivresPage() {
           : statutFiltre === "archive"
             ? ("ARCHIVE" as const)
             : undefined;
+      const categorieId =
+        categorieFiltre !== "tous"
+          ? categories.find((c) => c.nom === categorieFiltre)?.id
+          : undefined;
       const { livres: rows, meta } = await fetchLivres(
         apiMode
           ? {
@@ -205,6 +209,7 @@ export default function LivresPage() {
                   : downloadableFiltre === "non"
                     ? false
                     : undefined,
+              categorie_id: categorieId,
               page: livresPage,
               limit: 20,
             }
@@ -220,6 +225,8 @@ export default function LivresPage() {
     statutFiltre,
     typeLivreFiltre,
     downloadableFiltre,
+    categorieFiltre,
+    categories,
     search,
     livresPage,
   ]);
@@ -265,7 +272,15 @@ export default function LivresPage() {
       void loadLivres();
     }, search.trim() ? 300 : 0);
     return () => clearTimeout(timer);
-  }, [apiMode, loadLivres, statutFiltre, typeLivreFiltre, downloadableFiltre, search]);
+  }, [
+    apiMode,
+    loadLivres,
+    statutFiltre,
+    typeLivreFiltre,
+    downloadableFiltre,
+    categorieFiltre,
+    search,
+  ]);
 
   const reinitialiserFiltres = useCallback(() => {
     setSearch("");
@@ -328,7 +343,7 @@ export default function LivresPage() {
     }
     await refresh();
     toast.success(
-      `« ${archiveCible.titre} » archivé (${result.statut}) — hors catalogue utilisateur.`
+      `« ${archiveCible.titre} » archivé (${result.statut}), hors catalogue utilisateur.`
     );
     setArchiveCible(null);
   }, [archiveCible, refresh]);
@@ -346,7 +361,9 @@ export default function LivresPage() {
         (statutFiltre === "publie" && livre.statut === "PUBLIE") ||
         (statutFiltre === "archive" && livre.statut === "ARCHIVE");
       const matchCat =
-        categorieFiltre === "tous" || livre.categorie === categorieFiltre;
+        apiMode ||
+        categorieFiltre === "tous" ||
+        livre.categorie === categorieFiltre;
       const matchType =
         apiMode ||
         typeLivreFiltre === "tous" ||
@@ -570,7 +587,7 @@ export default function LivresPage() {
       {apiMode && livresMeta && livresMeta.total_pages > 1 && (
         <div className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-white px-4 py-3 dark:border-white/[0.06] dark:bg-white/[0.02]">
           <span className="text-sm text-gray-500 dark:text-gray-400">
-            Page {livresMeta.page} / {livresMeta.total_pages} — {livresMeta.total}{" "}
+            Page {livresMeta.page} / {livresMeta.total_pages} · {livresMeta.total}{" "}
             livre{livresMeta.total > 1 ? "s" : ""}
           </span>
           <div className="flex gap-2">
@@ -604,8 +621,8 @@ export default function LivresPage() {
         description={
           archiveCible ? (
             <>
-              « {archiveCible.titre} » passera au statut <strong>ARCHIVE</strong>{" "}
-              — hors catalogue utilisateur. Les jetons et progressions existants
+              « {archiveCible.titre} » passera au statut <strong>ARCHIVE</strong>,{" "}
+              hors catalogue utilisateur. Les jetons et progressions existants
               ne sont pas supprimés.
             </>
           ) : null
@@ -628,7 +645,7 @@ export default function LivresPage() {
           onSuccess={async (created) => {
             setModalOuvert(false);
             toast.success(
-              `Livre créé (${created.statut}) — ${created.titre} [${created.type_livre}]`
+              `Livre créé (${created.statut}) : ${created.titre} [${created.type_livre}]`
             );
             await loadLivres();
           }}
@@ -1158,7 +1175,7 @@ function AjouterLivreForm({
                   </p>
                 )}
                 <p className="mt-1 text-[11px] text-gray-400">
-                  Envoyé comme <code>url_externe_livre</code> — pas de fichier
+                  Envoyé comme <code>url_externe_livre</code>, pas de fichier
                   ni bibliothèque INTERNE requise.
                 </p>
               </div>
@@ -1311,7 +1328,7 @@ function AjouterLivreForm({
           <div>
             <Label>Fichier du livre *</Label>
             <p className="mb-2 text-[11px] text-gray-400">
-              Champ <code>file</code> — PDF, EPUB ou MOBI (max 50 Mo).
+              Champ <code>file</code> : PDF, EPUB ou MOBI (max 50 Mo).
             </p>
             <BookFileUploader
               value={fichierLivre}
@@ -1348,7 +1365,7 @@ function AjouterLivreForm({
                 referentielsLoading
                   ? "Chargement des catégories…"
                   : multiCategoriesOptions.length === 0
-                    ? "Aucune catégorie — créez-en une d'abord"
+                    ? "Aucune catégorie : créez-en une d'abord"
                     : "Choisir une ou plusieurs catégories"
               }
             />
@@ -1377,7 +1394,7 @@ function AjouterLivreForm({
               />
               {apiMode && (
                 <p className="mt-1 text-[11px] text-gray-400">
-                  Optionnel — association après création du livre.
+                  Optionnel, association après création du livre.
                 </p>
               )}
             </div>

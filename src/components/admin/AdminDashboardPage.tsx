@@ -360,11 +360,11 @@ export default function Page() {
         </h1>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
           {!apiMode
-            ? "Vue d’ensemble — données de démonstration"
+            ? "Vue d’ensemble : données de démonstration"
             : dashResult?.source === "api"
               ? "Vue d’ensemble de la plateforme B LINKS"
               : dashResult?.source === "unavailable"
-                ? "Vue d’ensemble — données indisponibles"
+                ? "Vue d’ensemble : données indisponibles"
                 : "Vue d’ensemble"}
         </p>
         {apiMode && dashResult?.error && (
@@ -470,8 +470,8 @@ export default function Page() {
         <AnimatedCard className="p-5 md:p-6 lg:col-span-8" delay={280}>
           <h3 className="mb-4 text-base font-semibold text-gray-800 dark:text-white/90">
             {useMockDashboard
-              ? "Évolution des abonnements — 6 derniers mois"
-              : "Inscriptions — 7 derniers jours"}
+              ? "Évolution des abonnements (6 derniers mois)"
+              : "Inscriptions (7 derniers jours)"}
           </h3>
           <div className="min-h-[320px] w-full">
             {showLoading ? (

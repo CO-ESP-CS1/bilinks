@@ -163,7 +163,7 @@ function ApiNotificationForm({
         Envoyer une notification in-app
       </h2>
       <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-        Diffusion immédiate — sans brouillon ni programmation.
+        Diffusion immédiate, sans brouillon ni programmation.
       </p>
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
         <div>
@@ -233,7 +233,7 @@ function ApiNotificationForm({
               </option>
               {users.map((u) => (
                 <option key={u.id} value={u.id}>
-                  {u.prenom} {u.nom} — {u.email}
+                  {u.prenom} {u.nom} · {u.email}
                 </option>
               ))}
             </select>
@@ -343,7 +343,7 @@ function NotificationForm({
       <h2 className="text-lg font-semibold text-gray-800 dark:text-white/90">{title}</h2>
       {lectureSeule && (
         <p className="mt-2 text-sm text-warning-600 dark:text-warning-400">
-          Cette notification a déjà été envoyée — consultation uniquement.
+          Cette notification a déjà été envoyée, consultation uniquement.
         </p>
       )}
       <form onSubmit={handleSubmit} className="mt-6 space-y-4">
@@ -649,7 +649,7 @@ export default function NotificationsPage() {
         row.id === n.id ? { ...row, statut: "BROUILLON" as const, programmeLe: null } : row
       )
     );
-    toast.success("Programmation annulée — repassée en brouillon.");
+    toast.success("Programmation annulée, repassée en brouillon.");
   };
 
   return (
@@ -665,7 +665,7 @@ export default function NotificationsPage() {
           <div>
             <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">Notifications</h1>
             <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-              {apiMode ? "Notifications in-app — envoi immédiat via l'API" : "Push et messages in-app"}
+              {apiMode ? "Notifications in-app · envoi immédiat via l'API" : "Push et messages in-app"}
             </p>
           </div>
         </div>
@@ -910,7 +910,7 @@ export default function NotificationsPage() {
         description={
           deleteTarget ? (
             <>
-              « {deleteTarget.titre} » — envoyé à{" "}
+              « {deleteTarget.titre} » envoyé à{" "}
               <strong>{deleteTarget.total_destinataires}</strong> utilisateur(s). Cette
               action supprimera toutes les notifications de ce groupe.
             </>

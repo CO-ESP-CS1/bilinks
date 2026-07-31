@@ -54,6 +54,7 @@ export function getAllPayments(): MockPaiement[] {
 
 export async function fetchPaymentsPersisted(options?: {
   statut?: StatutPaiement;
+  operateur?: string;
   page?: number;
 }): Promise<MockPaiement[]> {
   if (!isApiConfigured()) {
@@ -68,6 +69,7 @@ export async function fetchPaymentsPersisted(options?: {
     params.set("page", String(options?.page ?? 1));
     params.set("limit", String(LIST_LIMIT));
     if (options?.statut) params.set("statut", options.statut);
+    if (options?.operateur) params.set("operateur", options.operateur);
 
     const payload = await apiRequest<AdminPaymentsListResponse>(
       `${ADMIN_ROUTES.payments.list}?${params.toString()}`

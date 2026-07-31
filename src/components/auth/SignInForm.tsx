@@ -48,20 +48,17 @@ export default function SignInForm() {
 
   return (
     <div className="flex w-full flex-1 flex-col justify-center px-6 py-12 lg:w-1/2 lg:px-16 xl:px-24">
-      <div className="mx-auto w-full max-w-[420px]">
+      <div className="animate-fade-in-up mx-auto w-full max-w-[420px]">
         {/* Logo */}
         <div className="mb-10 flex items-center gap-3">
           <BrandLogoAnimated size="large" variant="compact" />
-          <span
-            className="animate-fade-in-up text-xl font-bold tracking-tight text-gray-900 dark:text-white"
-            style={{ animationDelay: "0.25s" }}
-          >
+          <span className="text-xl font-bold tracking-tight text-gray-900 dark:text-white">
             <BrandName accentClassName="text-amber-500 dark:text-amber-400" />
           </span>
         </div>
 
         {/* Titre */}
-        <div className="animate-fade-in-up mb-8" style={{ animationDelay: "0.35s" }}>
+        <div className="mb-8">
           <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-3xl">
             Bon retour
           </h1>
@@ -71,33 +68,23 @@ export default function SignInForm() {
         </div>
 
         {!apiMode && (
-          <div
-            className="animate-fade-in-up mb-8 rounded-xl border border-red-200/60 bg-red-50/50 p-4 dark:border-red-500/20 dark:bg-red-500/5"
-            style={{ animationDelay: "0.45s" }}
-          >
+          <div className="mb-8 rounded-xl border border-red-200/60 bg-red-50/50 p-4 dark:border-red-500/20 dark:bg-red-500/5">
             <p className="text-sm font-medium text-red-800 dark:text-red-300">
-              API non configurée — définissez NEXT_PUBLIC_API_URL (ou
+              API non configurée : définissez NEXT_PUBLIC_API_URL (ou
               NEXT_PUBLIC_API_BASE_URL) dans les variables d&apos;environnement
             </p>
           </div>
         )}
 
         {apiMode && (
-          <p
-            className="animate-fade-in-up mb-8 text-sm text-gray-500 dark:text-gray-400"
-            style={{ animationDelay: "0.45s" }}
-          >
-            Connexion via l’API backend — compte <strong>ADMIN</strong> actif
+          <p className="mb-8 text-sm text-gray-500 dark:text-gray-400">
+            Connexion via l’API backend, compte <strong>ADMIN</strong> actif
             requis (même identifiants que Postman).
           </p>
         )}
 
         {/* Formulaire */}
-        <form
-          onSubmit={handleSubmit}
-          className="animate-fade-in-up space-y-5"
-          style={{ animationDelay: "0.55s" }}
-        >
+        <form onSubmit={handleSubmit} className="space-y-5">
           <div>
             <Label htmlFor="signin-email">Adresse e-mail</Label>
             <Input
@@ -147,7 +134,7 @@ export default function SignInForm() {
           <button
             type="submit"
             disabled={loading}
-            className="relative w-full overflow-hidden rounded-xl bg-gradient-to-r from-[#1a3a5c] to-[#2563a0] px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-[#1a3a5c]/25 transition-all duration-300 hover:shadow-xl hover:shadow-[#1a3a5c]/30 active:scale-[0.98] disabled:opacity-60"
+            className="w-full rounded-xl bg-brand-500 px-6 py-3.5 text-sm font-semibold text-white transition-colors hover:bg-brand-600 disabled:opacity-60"
           >
             {loading ? (
               <span className="flex items-center justify-center gap-2">
@@ -164,11 +151,8 @@ export default function SignInForm() {
         </form>
 
         {/* Footer */}
-        <p
-          className="animate-fade-in-up mt-8 text-center text-xs text-gray-400 dark:text-gray-500"
-          style={{ animationDelay: "0.65s" }}
-        >
-          {BRAND_NAME} &copy; {new Date().getFullYear()} — {BRAND_TAGLINE}
+        <p className="mt-8 text-center text-xs text-gray-400 dark:text-gray-500">
+          {BRAND_NAME} &copy; {new Date().getFullYear()} · {BRAND_TAGLINE}
         </p>
       </div>
     </div>

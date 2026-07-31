@@ -111,6 +111,7 @@ function createUserLocal(input: {
     points: input.points ?? 0,
     dateInscription: new Date().toISOString().slice(0, 10),
     abonnementActif: input.abonnementActif ?? false,
+    membreEtablissement: false,
     deletedAt: null,
   };
   setCache([...users, user]);
@@ -182,6 +183,7 @@ export type FetchUsersOptions = {
   statut?: StatutUser | "PENDING";
   role?: RoleUser;
   q?: string;
+  abonnement_actif?: boolean;
   page?: number;
   limit?: number;
 };
@@ -210,6 +212,7 @@ export async function fetchUsersPersisted(
       statut: options?.statut,
       role: options?.role,
       q: options?.q,
+      abonnement_actif: options?.abonnement_actif,
       page: options?.page ?? 1,
       limit: options?.limit ?? USERS_PAGE_LIMIT,
     });
@@ -306,6 +309,7 @@ export async function createAdminPersisted(input: {
         points: 0,
         dateInscription: new Date().toISOString().slice(0, 10),
         abonnementActif: false,
+        membreEtablissement: false,
         deletedAt: null,
       };
       return { ok: true, user };

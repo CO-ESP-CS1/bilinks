@@ -203,12 +203,18 @@ export default function AbonnementsPage() {
         filtreStatut !== "tous" ? filtreStatut : undefined;
       const plan =
         filtrePlan !== "tous" ? (filtrePlan as PlanType) : undefined;
-      const rows = await fetchSubscriptionsPersisted({ statut, plan });
+      const type_renouvellement =
+        filtreType !== "tous" ? (filtreType as TypeRenouvellement) : undefined;
+      const rows = await fetchSubscriptionsPersisted({
+        statut,
+        plan,
+        type_renouvellement,
+      });
       setAbonnements(rows);
     } finally {
       setLoadingAbonnements(false);
     }
-  }, [apiMode, filtreStatut, filtrePlan]);
+  }, [apiMode, filtreStatut, filtrePlan, filtreType]);
 
   React.useEffect(() => {
     void rafraichirPlans();
@@ -228,7 +234,7 @@ export default function AbonnementsPage() {
       return;
     }
     void rafraichirAbonnements();
-  }, [apiMode, rafraichirAbonnements, filtreStatut, filtrePlan]);
+  }, [apiMode, rafraichirAbonnements, filtreStatut, filtrePlan, filtreType]);
 
   const reinitialiserFiltres = useCallback(() => {
     setFiltreStatut("tous");
@@ -265,7 +271,7 @@ export default function AbonnementsPage() {
         apiMode || filtreStatut === "tous" || a.statut === filtreStatut;
       const okPlan = apiMode || filtrePlan === "tous" || a.plan === filtrePlan;
       const okType =
-        filtreType === "tous" || a.typeRenouvellement === filtreType;
+        apiMode || filtreType === "tous" || a.typeRenouvellement === filtreType;
       return okStat && okPlan && okType;
     });
   }, [abonnementsActifs, filtreStatut, filtrePlan, filtreType, apiMode]);
@@ -394,7 +400,7 @@ export default function AbonnementsPage() {
       return;
     }
     if (apiMode && prix < 100) {
-      toast.error("Le prix minimum est de 100 XOF.");
+      toast.error("Le prix minimum est de 100 XAF.");
       return;
     }
     setSubmittingPlan(true);
@@ -818,7 +824,7 @@ export default function AbonnementsPage() {
           )}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <Label htmlFor="plan-prix">Prix (XOF) *</Label>
+              <Label htmlFor="plan-prix">Prix (XAF) *</Label>
               <Input
                 id="plan-prix"
                 type="number"

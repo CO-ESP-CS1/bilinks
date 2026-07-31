@@ -50,11 +50,11 @@ export function BadgeIconUploader({
   const handleFile = useCallback(
     (file: File) => {
       if (!MIME.has(file.type)) {
-        toast.error("Format non supporté — PNG, JPEG, WebP ou SVG.");
+        toast.error("Format non supporté : PNG, JPEG, WebP ou SVG.");
         return;
       }
       if (file.size > BADGE_ICONE_MAX_BYTES) {
-        toast.error("Icône trop volumineuse — taille maximale 5 Mo.");
+        toast.error("Icône trop volumineuse : taille maximale 5 Mo.");
         return;
       }
       revokeBlob();
@@ -84,7 +84,7 @@ export function BadgeIconUploader({
           <div className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-lg ring-1 ring-black/5 dark:border-gray-700 dark:bg-gray-900 dark:ring-white/10">
             <img
               src={value}
-              alt={`Icône — ${badgeName}`}
+              alt={`Icône de ${badgeName}`}
               className="h-full w-full object-contain p-2"
             />
           </div>

@@ -45,6 +45,7 @@ export type FetchLivresOptions = {
   statut?: "PUBLIE" | "ARCHIVE";
   type_livre?: TypeLivreCatalogue;
   is_downloadable?: boolean;
+  categorie_id?: string;
   q?: string;
   page?: number;
   limit?: number;
@@ -332,6 +333,7 @@ export async function fetchLivres(
     } else if (options?.is_downloadable === false) {
       params.set("is_downloadable", "false");
     }
+    if (options?.categorie_id) params.set("categorie_id", options.categorie_id);
     if (options?.q?.trim()) params.set("q", options.q.trim());
 
     const payload = await apiRequest<AdminBooksListResponse>(
@@ -346,6 +348,36 @@ export async function fetchLivres(
     };
   } catch {
     return { livres: [], meta: null };
+  }
+}
+
+/** Détail admin — GET /admin/books/{id} (une seule requête, pas de refetch de la liste complète). */
+export async function fetchLivreByIdPersisted(
+  id: string
+): Promise<MockLivre | null> {
+  if (!isApiConfigured()) {
+    return getLivreById(id);
+  }
+
+  try {
+    const row = await apiRequest<AdminBookListItemApi>(
+      ADMIN_ROUTES.books.byId(id)
+    );
+    const mapped = mapAdminBookToMockLivre(row);
+
+    const rows = getAllLivres();
+    const idx = rows.findIndex((l) => l.id === id);
+    if (idx >= 0) {
+      const next = [...rows];
+      next[idx] = mapped;
+      setCache(next);
+    } else {
+      setCache([...rows, mapped]);
+    }
+
+    return mapped;
+  } catch {
+    return null;
   }
 }
 

@@ -136,7 +136,7 @@ export async function createPlanPersisted(input: {
     };
   }
   if (input.prix < 100) {
-    return { ok: false, error: "Le prix minimum est de 100 XOF." };
+    return { ok: false, error: "Le prix minimum est de 100 XAF." };
   }
 
   if (isApiConfigured()) {
@@ -200,7 +200,7 @@ export async function updatePlanPersisted(
       return { ok: false, error: SESSION_REQUIRED_MESSAGE };
     }
     if (patch.prix !== undefined && patch.prix < 100) {
-      return { ok: false, error: "Le prix minimum est de 100 XOF." };
+      return { ok: false, error: "Le prix minimum est de 100 XAF." };
     }
 
     const body = buildPlanUpdateBody({
@@ -268,7 +268,7 @@ function createPlanLocal(input: {
     prix: input.prix,
     dureeJours: input.dureeJours,
     statut: input.statut ?? "ACTIF",
-    devise: "XOF",
+    devise: "XAF",
     deletedAt: null,
   };
   setCache([...plans, plan]);

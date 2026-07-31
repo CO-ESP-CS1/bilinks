@@ -28,7 +28,7 @@ export const PLAN_CARACTERISTIQUES: Record<PlanType, string[]> = {
     "Support prioritaire",
   ],
   ANNUEL: [
-    "Accès illimité 12 mois — meilleur tarif",
+    "Accès illimité 12 mois, meilleur tarif",
     "Lecture en ligne et hors ligne",
     "Jusqu'à 3 appareils simultanés",
     "Défis de lecture + badges exclusifs",

@@ -129,13 +129,13 @@ export async function createBadgePersisted(input: {
   if (!BADGE_ICONE_MIME.has(input.iconeFile.type)) {
     return {
       ok: false,
-      error: "Icône invalide — formats acceptés : PNG, JPEG, WebP, SVG.",
+      error: "Icône invalide, formats acceptés : PNG, JPEG, WebP, SVG.",
     };
   }
   if (input.iconeFile.size > BADGE_ICONE_MAX_BYTES) {
     return {
       ok: false,
-      error: "Icône trop volumineuse — taille maximale 5 Mo.",
+      error: "Icône trop volumineuse : taille maximale 5 Mo.",
     };
   }
 
@@ -263,13 +263,13 @@ export async function updateBadgePersisted(
         if (!BADGE_ICONE_MIME.has(patch.iconeFile.type)) {
           return {
             ok: false,
-            error: "Icône invalide — formats acceptés : PNG, JPEG, WebP, SVG.",
+            error: "Icône invalide, formats acceptés : PNG, JPEG, WebP, SVG.",
           };
         }
         if (patch.iconeFile.size > BADGE_ICONE_MAX_BYTES) {
           return {
             ok: false,
-            error: "Icône trop volumineuse — taille maximale 5 Mo.",
+            error: "Icône trop volumineuse : taille maximale 5 Mo.",
           };
         }
         form.append("icone", patch.iconeFile, patch.iconeFile.name);

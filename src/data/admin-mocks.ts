@@ -94,17 +94,17 @@ export const mockBibliotheques: MockBibliotheque[] = [
   { id: "b2", nom: "OpenLibrary", type: "EXTERNE", statut: "ACTIVE", description: "Bibliothèque numérique gratuite mondiale", urlExterne: "https://openlibrary.org", nbLivres: 0, deletedAt: null },
   { id: "b3", nom: "Gallica — BnF", type: "EXTERNE", statut: "ACTIVE", description: "Bibliothèque numérique de la BnF", urlExterne: "https://gallica.bnf.fr", nbLivres: 0, deletedAt: null },
   { id: "b4", nom: "Fonds Africain", type: "INTERNE", statut: "ACTIVE", description: "Littérature africaine et ouvrages locaux", urlExterne: null, nbLivres: 47, deletedAt: null },
-  { id: "b5", nom: "Archive Ancienne", type: "INTERNE", statut: "ARCHIVEE", description: "Ancienne collection — archivée", urlExterne: null, nbLivres: 12, deletedAt: null },
+  { id: "b5", nom: "Archive Ancienne", type: "INTERNE", statut: "ARCHIVEE", description: "Ancienne collection, archivée", urlExterne: null, nbLivres: 12, deletedAt: null },
 ];
 
 // --- Utilisateurs ---
 export const mockUtilisateurs: MockUtilisateur[] = [
-  { id: "u1", nom: "Moukassa", prenom: "Darcel", email: "darcel@univ-brazza.cg", ecole: "UMNG", niveau: "Licence 3", role: "USER", statut: "ACTIF", points: 340, dateInscription: "2024-09-12", abonnementActif: true, deletedAt: null },
-  { id: "u2", nom: "Ngoma", prenom: "Prisca", email: "prisca.ngoma@gmail.com", ecole: "ISM", niveau: "Master 1", role: "USER", statut: "ACTIF", points: 185, dateInscription: "2024-10-03", abonnementActif: true, deletedAt: null },
-  { id: "u3", nom: "Loemba", prenom: "Franck", email: "franck.l@yahoo.fr", ecole: "ESGAE", niveau: "Licence 2", role: "USER", statut: "BANNI", points: 20, dateInscription: "2024-08-22", abonnementActif: false, deletedAt: null },
-  { id: "u4", nom: "Mavoungou", prenom: "Chrystelle", email: "c.mavoungou@gmail.com", ecole: "UMNG", niveau: "Licence 1", role: "USER", statut: "ACTIF", points: 95, dateInscription: "2025-01-15", abonnementActif: false, deletedAt: null },
-  { id: "u5", nom: "Boutsindi", prenom: "Divin", email: "divin@bibliotech.cg", ecole: "UMNG", niveau: "Licence 3", role: "ADMIN", statut: "ACTIF", points: 0, dateInscription: "2024-07-01", abonnementActif: false, deletedAt: null },
-  { id: "u6", nom: "Kimpouni", prenom: "Aline", email: "aline.k@gmail.com", ecole: "UCB", niveau: "Master 2", role: "USER", statut: "ACTIF", points: 520, dateInscription: "2024-11-08", abonnementActif: true, deletedAt: null },
+  { id: "u1", nom: "Moukassa", prenom: "Darcel", email: "darcel@univ-brazza.cg", ecole: "UMNG", niveau: "Licence 3", role: "USER", statut: "ACTIF", points: 340, dateInscription: "2024-09-12", abonnementActif: true, membreEtablissement: false, deletedAt: null },
+  { id: "u2", nom: "Ngoma", prenom: "Prisca", email: "prisca.ngoma@gmail.com", ecole: "ISM", niveau: "Master 1", role: "USER", statut: "ACTIF", points: 185, dateInscription: "2024-10-03", abonnementActif: true, membreEtablissement: false, deletedAt: null },
+  { id: "u3", nom: "Loemba", prenom: "Franck", email: "franck.l@yahoo.fr", ecole: "ESGAE", niveau: "Licence 2", role: "USER", statut: "BANNI", points: 20, dateInscription: "2024-08-22", abonnementActif: false, membreEtablissement: false, deletedAt: null },
+  { id: "u4", nom: "Mavoungou", prenom: "Chrystelle", email: "c.mavoungou@gmail.com", ecole: "UMNG", niveau: "Licence 1", role: "USER", statut: "ACTIF", points: 95, dateInscription: "2025-01-15", abonnementActif: false, membreEtablissement: false, deletedAt: null },
+  { id: "u5", nom: "Boutsindi", prenom: "Divin", email: "divin@bibliotech.cg", ecole: "UMNG", niveau: "Licence 3", role: "ADMIN", statut: "ACTIF", points: 0, dateInscription: "2024-07-01", abonnementActif: false, membreEtablissement: false, deletedAt: null },
+  { id: "u6", nom: "Kimpouni", prenom: "Aline", email: "aline.k@gmail.com", ecole: "UCB", niveau: "Master 2", role: "USER", statut: "ACTIF", points: 520, dateInscription: "2024-11-08", abonnementActif: true, membreEtablissement: false, deletedAt: null },
 ];
 
 // --- Abonnements ---
@@ -142,7 +142,7 @@ export const mockPlans: MockPlanTarifaire[] = [
     prix: 500,
     dureeJours: 7,
     statut: "ACTIF",
-    devise: "XOF",
+    devise: "XAF",
     deletedAt: null,
   },
   {
@@ -152,7 +152,7 @@ export const mockPlans: MockPlanTarifaire[] = [
     prix: 1500,
     dureeJours: 30,
     statut: "ACTIF",
-    devise: "XOF",
+    devise: "XAF",
     deletedAt: null,
   },
   {
@@ -162,7 +162,7 @@ export const mockPlans: MockPlanTarifaire[] = [
     prix: 12000,
     dureeJours: 365,
     statut: "ACTIF",
-    devise: "XOF",
+    devise: "XAF",
     deletedAt: null,
   },
 ];
@@ -170,9 +170,9 @@ export const mockPlans: MockPlanTarifaire[] = [
 // --- Activité récente (dashboard) ---
 export const mockActiviteRecente = [
   { type: "inscription", message: "Chrystelle Mavoungou s'est inscrite", temps: "Il y a 2h" },
-  { type: "paiement", message: "Paiement MTN reçu — Aline Kimpouni (1 500 XAF)", temps: "Il y a 4h" },
-  { type: "commentaire", message: "Commentaire à modérer — L'Art de la Guerre", temps: "Il y a 5h" },
-  { type: "livre", message: "Introduction à Python — 523 lectures ce mois", temps: "Aujourd'hui" },
+  { type: "paiement", message: "Paiement MTN reçu de Aline Kimpouni (1 500 XAF)", temps: "Il y a 4h" },
+  { type: "commentaire", message: "Commentaire à modérer sur L'Art de la Guerre", temps: "Il y a 5h" },
+  { type: "livre", message: "Introduction à Python : 523 lectures ce mois", temps: "Aujourd'hui" },
   { type: "badge", message: "12 badges distribués cette semaine", temps: "Cette semaine" },
 ];
 
@@ -296,7 +296,7 @@ export const mockBadges: MockBadge[] = [
 export const mockNotifications: MockNotification[] = [
   {
     id: "n1",
-    titre: "Nouveaux livres — Informatique",
+    titre: "Nouveaux livres d'Informatique",
     message: "12 ouvrages viennent d'être ajoutés au catalogue.",
     cible: "TOUS",
     statut: "ENVOYEE",
@@ -320,7 +320,7 @@ export const mockNotifications: MockNotification[] = [
   },
   {
     id: "n3",
-    titre: "Défi Marathon — c'est parti !",
+    titre: "Défi Marathon, c'est parti !",
     message: "Participez au défi de la semaine et gagnez 150 points.",
     cible: "TOUS",
     statut: "PROGRAMMEE",

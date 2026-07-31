@@ -4,10 +4,13 @@ import React, { useEffect, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import type { ApexOptions } from "apexcharts";
 import { Breadcrumb, adminCrumb } from "@/components/Breadcrumb";
+import { ReadingHabitsPanel } from "@/components/admin/ReadingHabitsPanel";
+import { ExportDropdownButton } from "@/components/admin/ExportDropdownButton";
 import { formatXaf } from "@/lib/abonnements-utils";
 import { PieChartIcon } from "@/icons";
 import { isApiConfigured } from "@/lib/api/client";
 import { hasApiSession } from "@/lib/api/session";
+import { ADMIN_ROUTES } from "@/lib/api/routes";
 import type {
   AdminStatsBooksSort,
   AdminStatsUsersPeriode,
@@ -269,18 +272,25 @@ export default function StatistiquesPage() {
   return (
     <div className="space-y-6" aria-busy={showPageSkeleton}>
       <Breadcrumb items={adminCrumb("Statistiques")} />
-      <div className="flex items-start gap-4">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-500/10 text-brand-500 dark:bg-brand-500/15">
-          <PieChartIcon className="size-6" />
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex items-start gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-brand-500/10 text-brand-500 dark:bg-brand-500/15">
+            <PieChartIcon className="size-6" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">
+              Statistiques
+            </h1>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              Analyses et tendances B LINKS
+            </p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">
-            Statistiques
-          </h1>
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            Analyses et tendances B LINKS
-          </p>
-        </div>
+        <ExportDropdownButton
+          pdfPath={ADMIN_ROUTES.exports.statsPdf}
+          xlsxPath={ADMIN_ROUTES.exports.statsXlsx}
+          filenameBase="blinks-statistiques"
+        />
       </div>
 
       {apiMode && !apiSessionReady && !loading && (
@@ -488,8 +498,8 @@ export default function StatistiquesPage() {
         <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6 lg:col-span-7">
           <h2 className="mb-4 text-base font-semibold text-gray-800 dark:text-white/90">
             {apiMode
-              ? "Inscriptions — tendance"
-              : "Abonnements — nouveaux vs renouvellements"}
+              ? "Inscriptions : tendance"
+              : "Abonnements : nouveaux vs renouvellements"}
           </h2>
           {apiMode && !loading && inscriptionsSeries.length === 0 ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -756,6 +766,13 @@ export default function StatistiquesPage() {
         </div>
         </div>
       )}
+
+      <div className="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:p-6">
+        <h2 className="mb-4 text-base font-semibold text-gray-800 dark:text-white/90">
+          Habitudes de lecture
+        </h2>
+        <ReadingHabitsPanel />
+      </div>
     </div>
   );
 }

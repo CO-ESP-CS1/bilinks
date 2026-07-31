@@ -172,7 +172,7 @@ export function buildPlanCreateBody(input: {
   return {
     plan: input.plan,
     prix: input.prix,
-    devise: input.devise ?? "XOF",
+    devise: input.devise ?? "XAF",
     duree_jours: input.duree_jours,
   };
 }
@@ -221,6 +221,7 @@ export function buildAdminUsersQuery(input: {
   statut?: string;
   role?: string;
   q?: string;
+  abonnement_actif?: boolean;
   page?: number;
   limit?: number;
 }): URLSearchParams {
@@ -230,6 +231,9 @@ export function buildAdminUsersQuery(input: {
   if (input.statut) params.set("statut", input.statut);
   if (input.role) params.set("role", input.role);
   if (input.q?.trim()) params.set("q", input.q.trim());
+  if (input.abonnement_actif !== undefined) {
+    params.set("abonnement_actif", String(input.abonnement_actif));
+  }
   return params;
 }
 

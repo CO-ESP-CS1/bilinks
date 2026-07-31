@@ -5,9 +5,12 @@ import Link from "next/link";
 import { useParams, notFound } from "next/navigation";
 import toast from "react-hot-toast";
 import { Breadcrumb } from "@/components/Breadcrumb";
+import { ReadingHabitsPanel } from "@/components/admin/ReadingHabitsPanel";
+import { ExportDropdownButton } from "@/components/admin/ExportDropdownButton";
 import type { MockUtilisateur } from "@/lib/mock-data";
 import type { AdminUserDetailResponse } from "@/lib/api/admin-types";
 import { isApiConfigured } from "@/lib/api/client";
+import { ADMIN_ROUTES } from "@/lib/api/routes";
 import { useAuth } from "@/context/AuthContext";
 import {
   fetchUserDetailPersisted,
@@ -199,10 +202,20 @@ export default function UtilisateurProfilPage() {
                   Non abonné
                 </Badge>
               )}
+              {utilisateur.membreEtablissement && (
+                <Badge color="info" size="sm" variant="light">
+                  Membre du pack établissement
+                </Badge>
+              )}
             </div>
           </div>
         </div>
         <div className="flex flex-wrap gap-3">
+          <ExportDropdownButton
+            pdfPath={ADMIN_ROUTES.exports.userPdf(utilisateur.id)}
+            xlsxPath={ADMIN_ROUTES.exports.userXlsx(utilisateur.id)}
+            filenameBase={`blinks-utilisateur-${utilisateur.id}`}
+          />
           <Link href="/admin/utilisateurs">
             <Button variant="outline">Retour à la liste</Button>
           </Link>
@@ -433,6 +446,13 @@ export default function UtilisateurProfilPage() {
                 </Table>
               </div>
             )}
+          </section>
+
+          <section className="rounded-xl border border-gray-200 bg-white p-6 dark:border-white/[0.05] dark:bg-white/[0.03]">
+            <h2 className="mb-4 text-base font-semibold text-gray-800 dark:text-white/90">
+              Habitudes de lecture
+            </h2>
+            <ReadingHabitsPanel userId={id} />
           </section>
         </>
       )}

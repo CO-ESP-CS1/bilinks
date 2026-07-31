@@ -298,10 +298,17 @@ export default function UtilisateursPage() {
             : filtreRole === "admin"
               ? ("ADMIN" as const)
               : undefined;
+        const abonnement_actif =
+          filtreAbonnement === "abonne"
+            ? true
+            : filtreAbonnement === "non"
+              ? false
+              : undefined;
         const { users, meta } = await fetchUsersPersisted({
           statut,
           role,
           q: search.trim() || undefined,
+          abonnement_actif,
           page: usersPage,
           limit: 20,
         });
@@ -315,11 +322,11 @@ export default function UtilisateursPage() {
     } finally {
       setLoadingUsers(false);
     }
-  }, [apiMode, filtreStatut, filtreRole, search, usersPage]);
+  }, [apiMode, filtreStatut, filtreRole, filtreAbonnement, search, usersPage]);
 
   useEffect(() => {
     setUsersPage(1);
-  }, [filtreStatut, filtreRole, search]);
+  }, [filtreStatut, filtreRole, filtreAbonnement, search]);
 
   useEffect(() => {
     const timer = setTimeout(
@@ -365,6 +372,7 @@ export default function UtilisateursPage() {
         (filtreStatut === "pending" && u.statut === "PENDING") ||
         (filtreStatut === "banni" && u.statut === "BANNI");
       const matchAbo =
+        apiMode ||
         filtreAbonnement === "tous" ||
         (filtreAbonnement === "abonne" && u.abonnementActif) ||
         (filtreAbonnement === "non" && !u.abonnementActif);
@@ -738,7 +746,7 @@ export default function UtilisateursPage() {
       {apiMode && usersMeta && usersMeta.total_pages > 1 && (
         <div className="flex items-center justify-between gap-3 rounded-xl border border-gray-100 bg-white px-4 py-3 dark:border-white/[0.06] dark:bg-white/[0.02]">
           <span className="text-sm text-gray-500 dark:text-gray-400">
-            Page {usersMeta.page} / {usersMeta.total_pages} — {usersMeta.total}{" "}
+            Page {usersMeta.page} / {usersMeta.total_pages} · {usersMeta.total}{" "}
             utilisateur{usersMeta.total > 1 ? "s" : ""}
           </span>
           <div className="flex gap-2">

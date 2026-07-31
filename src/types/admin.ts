@@ -77,6 +77,7 @@ export interface MockUtilisateur {
   points: number;
   dateInscription: string;
   abonnementActif: boolean;
+  membreEtablissement: boolean;
   deletedAt: string | null;
 }
 
@@ -96,7 +97,8 @@ export interface MockAbonnement {
 export interface MockPaiement {
   id: string;
   utilisateurNom: string;
-  plan: PlanType;
+  /** `PlanType` pour un abonnement individuel, libellé libre ("Pack établissement · …") pour un paiement établissement. */
+  plan: string;
   montant: number;
   operateur: string;
   numeroTelephone: string;
@@ -115,7 +117,7 @@ export interface MockCommentaire {
 }
 
 export type StatutPlanTarifaire = "ACTIF" | "INACTIF";
-export type DevisePlan = "XOF";
+export type DevisePlan = "XAF";
 
 export interface MockPlanTarifaire {
   id: string;

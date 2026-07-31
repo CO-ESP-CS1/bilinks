@@ -6,6 +6,7 @@ export const ADMIN_ROUTES = {
     byId: (id: string) => `/admin/users/${id}`,
     ban: (id: string) => `/admin/users/${id}/ban`,
     unban: (id: string) => `/admin/users/${id}/unban`,
+    readingHabits: (id: string) => `/admin/users/${id}/reading-habits`,
   },
   books: {
     list: "/admin/books",
@@ -71,6 +72,35 @@ export const ADMIN_ROUTES = {
     books: "/admin/stats/books",
     searchTerms: "/admin/stats/search-terms",
     activity: "/admin/stats/activity",
+    readingHabits: "/admin/stats/reading-habits",
+  },
+  etablissements: {
+    list: "/admin/etablissements",
+    create: "/admin/etablissements",
+    byId: (id: string) => `/admin/etablissements/${id}`,
+    membres: (id: string) => `/admin/etablissements/${id}/membres`,
+    retireMembre: (id: string, membreId: string) =>
+      `/admin/etablissements/${id}/membres/${membreId}/retirer`,
+    prolonger: (id: string) => `/admin/etablissements/${id}/prolonger`,
+    performance: (id: string) => `/admin/etablissements/${id}/performance`,
+  },
+  performance: {
+    overview: (query?: string) =>
+      `/admin/performance/overview${query ? `?${query}` : ""}`,
+  },
+  exports: {
+    statsPdf: "/admin/export/stats/pdf",
+    statsXlsx: "/admin/export/stats/xlsx",
+    userPdf: (id: string) => `/admin/export/users/${id}/pdf`,
+    userXlsx: (id: string) => `/admin/export/users/${id}/xlsx`,
+    paymentsPdf: (query?: string) =>
+      `/admin/export/payments/pdf${query ? `?${query}` : ""}`,
+    paymentsXlsx: (query?: string) =>
+      `/admin/export/payments/xlsx${query ? `?${query}` : ""}`,
+    performancePdf: (query?: string) =>
+      `/admin/export/performance/pdf${query ? `?${query}` : ""}`,
+    performanceXlsx: (query?: string) =>
+      `/admin/export/performance/xlsx${query ? `?${query}` : ""}`,
   },
   notifications: {
     list: "/admin/notifications",
@@ -79,7 +109,10 @@ export const ADMIN_ROUTES = {
   },
   youtube: {
     channels: "/admin/youtube/channels",
+    resolveChannel: (q: string) =>
+      `/admin/youtube/channels/resolve?q=${encodeURIComponent(q)}`,
     createChannel: "/admin/youtube/channels",
+    updateChannel: (id: string) => `/admin/youtube/channels/${id}`,
     activateChannel: (id: string) => `/admin/youtube/channels/${id}/activate`,
     deactivateChannel: (id: string) => `/admin/youtube/channels/${id}/deactivate`,
     deleteChannel: (id: string) => `/admin/youtube/channels/${id}`,

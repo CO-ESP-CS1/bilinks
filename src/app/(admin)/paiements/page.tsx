@@ -19,6 +19,8 @@ import {
 import { formatXaf } from "@/lib/abonnements-utils";
 import { getPlanLabel } from "@/lib/plans-store";
 import { DollarLineIcon } from "@/icons";
+import { ExportDropdownButton } from "@/components/admin/ExportDropdownButton";
+import { ADMIN_ROUTES } from "@/lib/api/routes";
 
 function estMoisCourant(iso: string): boolean {
   const now = new Date();
@@ -112,6 +114,8 @@ export default function PaiementsPage() {
     "tous" | StatutPaiement
   >("tous");
   const [filtreOperateur, setFiltreOperateur] = useState<string>("tous");
+  const [exportDateDebut, setExportDateDebut] = useState("");
+  const [exportDateFin, setExportDateFin] = useState("");
   const [detailPaiement, setDetailPaiement] = useState<MockPaiement | null>(
     null
   );
@@ -124,13 +128,13 @@ export default function PaiementsPage() {
     try {
       const statut =
         apiMode && filtreStatut !== "tous" ? filtreStatut : undefined;
-      setPaiements(
-        await fetchPaymentsPersisted(statut ? { statut } : undefined)
-      );
+      const operateur =
+        apiMode && filtreOperateur !== "tous" ? filtreOperateur : undefined;
+      setPaiements(await fetchPaymentsPersisted({ statut, operateur }));
     } finally {
       setLoadingPaiements(false);
     }
-  }, [apiMode, filtreStatut]);
+  }, [apiMode, filtreStatut, filtreOperateur]);
 
   useEffect(() => {
     void chargerPaiements();
@@ -145,6 +149,16 @@ export default function PaiementsPage() {
     const s = new Set(paiements.map((p) => p.operateur));
     return Array.from(s).sort();
   }, [paiements]);
+
+  const exportQuery = useMemo(() => {
+    const params = new URLSearchParams();
+    if (apiMode && filtreStatut !== "tous") params.set("statut", filtreStatut);
+    if (apiMode && filtreOperateur !== "tous")
+      params.set("operateur", filtreOperateur);
+    if (apiMode && exportDateDebut) params.set("dateDebut", exportDateDebut);
+    if (apiMode && exportDateFin) params.set("dateFin", exportDateFin);
+    return params.toString();
+  }, [apiMode, filtreStatut, filtreOperateur, exportDateDebut, exportDateFin]);
 
   const libelleMoisCourant = useMemo(() => {
     return new Date().toLocaleDateString("fr-FR", {
@@ -177,7 +191,9 @@ export default function PaiementsPage() {
       const okStat =
         apiMode || filtreStatut === "tous" || p.statut === filtreStatut;
       const okOp =
-        filtreOperateur === "tous" || p.operateur === filtreOperateur;
+        apiMode ||
+        filtreOperateur === "tous" ||
+        p.operateur === filtreOperateur;
       return okStat && okOp;
     });
   }, [paiements, filtreStatut, filtreOperateur, apiMode]);
@@ -188,13 +204,46 @@ export default function PaiementsPage() {
   return (
     <div className="space-y-8" aria-busy={showPageSkeleton}>
       <Breadcrumb items={adminCrumb("Paiements")} />
-      <div>
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">
-          Paiements
-        </h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Encaissements et transactions Mobile Money
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-white/90">
+            Paiements
+          </h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Encaissements et transactions Mobile Money
+          </p>
+        </div>
+        {apiMode && (
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="w-40">
+              <Label htmlFor="export-date-debut">Période de l&apos;export (du)</Label>
+              <input
+                id="export-date-debut"
+                type="date"
+                className={selectClass}
+                value={exportDateDebut}
+                max={exportDateFin || undefined}
+                onChange={(e) => setExportDateDebut(e.target.value)}
+              />
+            </div>
+            <div className="w-40">
+              <Label htmlFor="export-date-fin">au</Label>
+              <input
+                id="export-date-fin"
+                type="date"
+                className={selectClass}
+                value={exportDateFin}
+                min={exportDateDebut || undefined}
+                onChange={(e) => setExportDateFin(e.target.value)}
+              />
+            </div>
+            <ExportDropdownButton
+              pdfPath={ADMIN_ROUTES.exports.paymentsPdf(exportQuery)}
+              xlsxPath={ADMIN_ROUTES.exports.paymentsXlsx(exportQuery)}
+              filenameBase="blinks-paiements"
+            />
+          </div>
+        )}
       </div>
 
       <section>

@@ -33,6 +33,7 @@ export type AdminUserListItemApi = {
     date_fin: string;
     jours_restants: number;
   } | null;
+  membre_etablissement: boolean;
 };
 
 export type AdminUsersListResponse = PaginatedResponse<AdminUserListItemApi>;
@@ -115,6 +116,7 @@ export type AdminUserDetailResponse = {
   nb_commentaires?: number;
   nb_notes?: number;
   nb_defis_completes?: number;
+  membre_etablissement?: boolean;
 };
 
 // --- Commentaires ---
@@ -140,7 +142,8 @@ export type AdminPaymentListItemApi = {
   operateur?: string | null;
   createdAt: string;
   auth: { email: string };
-  plan: { plan: PlanType; prix: number };
+  /** `plan.plan` est un `PlanType` pour un abonnement individuel, un libellé libre pour un paiement établissement. */
+  plan: { plan: string; prix: number };
 };
 
 export type AdminPaymentsListResponse =
@@ -335,6 +338,100 @@ export type AdminLibraryApi = {
 
 export type AdminLibrariesListResponse = PaginatedResponse<AdminLibraryApi>;
 
+export type AdminEtablissementApi = {
+  id: string;
+  nom: string;
+  email_contact?: string | null;
+  telephone_contact?: string | null;
+  code_invitation: string;
+  nb_users_max: number;
+  nb_membres_actifs: number;
+  prix: number;
+  devise: string;
+  duree_jours: number;
+  statut: "ACTIF" | "SUSPENDU" | "EXPIRE";
+  date_debut: string;
+  date_fin: string;
+  createdAt: string;
+};
+
+export type AdminEtablissementsListResponse =
+  PaginatedResponse<AdminEtablissementApi>;
+
+export type AdminEtablissementMembreApi = {
+  id: string;
+  auth_id: string;
+  email: string;
+  rejoint_le: string;
+};
+
+export type AdminEtablissementDetailApi = AdminEtablissementApi & {
+  membres: AdminEtablissementMembreApi[];
+};
+
+export type AdminEtablissementPerformanceApi = {
+  revenu: {
+    montant: number;
+    devise: string;
+    statut: "EN_ATTENTE" | "SUCCES" | "ECHEC";
+    date: string;
+  } | null;
+  membres: {
+    total: number;
+    actifs_lecteurs: number;
+  };
+  lecture: {
+    minutes_total: number;
+    sessions_total: number;
+  };
+  livres_populaires: {
+    titre: string;
+    nb_sessions: number;
+  }[];
+};
+
+export type AdminPerformancePeriode = "7j" | "30j" | "90j" | "365j";
+
+export type AdminPerformanceEtablissementRow = {
+  id: string;
+  nom: string;
+  statut: "ACTIF" | "SUSPENDU" | "EXPIRE";
+  revenu: { montant: number; devise: string; statut: StatutPaiement } | null;
+  membres_total: number;
+  membres_actifs_lecteurs: number;
+  minutes_lecture_total: number;
+};
+
+export type AdminPerformanceOverviewApi = {
+  periode: AdminPerformancePeriode;
+  revenu: {
+    total_periode: number;
+    total_periode_precedente: number;
+    variation_pct: number | null;
+    individuel_total: number;
+    etablissement_total: number;
+    serie_jour: { date: string; montant: number }[];
+  };
+  paiements: {
+    succes: number;
+    en_attente: number;
+    echec: number;
+    taux_succes_pct: number;
+  };
+  etablissements: AdminPerformanceEtablissementRow[];
+  top_etablissement: AdminPerformanceEtablissementRow | null;
+};
+
+export type AdminEtablissementCreateBody = {
+  nom: string;
+  email_contact?: string;
+  telephone_contact?: string;
+  nb_users_max: number;
+  prix: number;
+  devise?: string;
+  duree_jours: number;
+};
+
 /** Réponse `POST /admin/libraries` — statut ACTIVE par défaut côté serveur. */
 export type AdminLibraryCreateResponse = {
   id: string;
@@ -508,6 +605,10 @@ export type AdminStatsActivityItemApi = {
   auth_provider?: string;
   statut?: string;
   id?: string;
+  /** `individuel` (défaut implicite) ou `etablissement` — paiement de pack établissement. */
+  source?: "individuel" | "etablissement";
+  nom_etablissement?: string;
+  email_contact?: string;
   montant?: number;
   devise?: string;
   operateur?: string | null;
@@ -518,6 +619,32 @@ export type AdminStatsActivityResponse =
   PaginatedResponse<AdminStatsActivityItemApi>;
 
 export type AdminStatsActivityPeriode = "7j" | "30j" | "90j";
+
+export type AdminReadingHabitsPeriode = "7j" | "30j" | "90j" | "365j";
+
+export type AdminReadingHabitsCreneau =
+  | "MATIN"
+  | "APRES_MIDI"
+  | "SOIR"
+  | "NUIT";
+
+export type AdminReadingHabitsApi = {
+  heatmap: Array<{
+    jour_semaine: number;
+    heure: number;
+    nb_sessions: number;
+    minutes_total: number;
+  }>;
+  creneau_prefere: AdminReadingHabitsCreneau | null;
+  duree_moyenne_session_min: number;
+  nb_sessions: number;
+  tendance_duree_pct: number | null;
+  streak_moyen?: number;
+  streak_max_moyen?: number;
+  streak_max_record?: number;
+  streak_actuel?: number;
+  streak_max?: number;
+};
 
 // --- Notifications in-app ---
 export const ADMIN_NOTIFICATION_TYPES = [

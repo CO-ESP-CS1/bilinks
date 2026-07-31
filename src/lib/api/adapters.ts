@@ -69,7 +69,7 @@ export function mapAdminPlanToMockPlan(row: AdminPlanApi): MockPlanTarifaire {
     nom: planLabelFromCode(row.plan),
     prix: Number(row.prix),
     dureeJours: row.duree_jours,
-    devise: (row.devise as "XOF") ?? "XOF",
+    devise: (row.devise as "XAF") ?? "XAF",
     statut: row.statut ?? "ACTIF",
     deletedAt: null,
   };
@@ -88,6 +88,7 @@ export function mapAdminUserToMockUser(row: AdminUserListItemApi): MockUtilisate
     points: row.personne?.points ?? 0,
     dateInscription: (row.date_inscription ?? "").slice(0, 10),
     abonnementActif: Boolean(row.abonnement_actif),
+    membreEtablissement: Boolean(row.membre_etablissement),
     deletedAt: null,
   };
 }
@@ -120,6 +121,7 @@ export function mapAdminUserDetailToMockUser(
     points: detail.personne.points ?? 0,
     dateInscription: (detail.auth.date_inscription ?? "").slice(0, 10),
     abonnementActif: aboActif,
+    membreEtablissement: Boolean(detail.membre_etablissement),
     deletedAt: detail.personne.deleted_at ? String(detail.personne.deleted_at) : null,
   };
 }

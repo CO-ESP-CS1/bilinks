@@ -38,7 +38,7 @@ describe("validateSubscriptionCancelRaison", () => {
 });
 
 describe("buildPlanCreateBody", () => {
-  it("utilise XOF par défaut (aligné backend)", () => {
+  it("utilise XAF par défaut (aligné backend)", () => {
     expect(
       buildPlanCreateBody({
         plan: "MENSUEL",
@@ -48,7 +48,7 @@ describe("buildPlanCreateBody", () => {
     ).toEqual({
       plan: "MENSUEL",
       prix: 1500,
-      devise: "XOF",
+      devise: "XAF",
       duree_jours: 30,
     });
   });

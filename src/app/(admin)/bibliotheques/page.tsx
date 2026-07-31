@@ -14,6 +14,7 @@ import {
   archiveLibraryPersisted,
   unarchiveLibraryPersisted,
   createLibraryPersisted,
+  deleteLibraryPersisted,
   fetchLibrariesPersisted,
   updateLibraryPersisted,
 } from "@/lib/libraries-store";
@@ -27,7 +28,7 @@ import Input from "@/components/form/input/InputField";
 import TextArea from "@/components/form/input/TextArea";
 import Radio from "@/components/form/input/Radio";
 import { useAdminPageSearch } from "@/context/AdminPageSearchContext";
-import { PencilIcon, ArrowRightIcon, FolderIcon } from "@/icons";
+import { PencilIcon, ArrowRightIcon, FolderIcon, TrashBinIcon } from "@/icons";
 
 function formatLivres(n: number): string {
   return `${new Intl.NumberFormat("fr-FR").format(n)} livre${n > 1 ? "s" : ""}`;
@@ -121,10 +122,10 @@ function BibliothequeForm({
         try {
           const parsed = new URL(urlExterne.trim());
           if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-            next.urlExterne = "URL invalide — utilisez http:// ou https://.";
+            next.urlExterne = "URL invalide : utilisez http:// ou https://.";
           }
         } catch {
-          next.urlExterne = "URL invalide — utilisez http:// ou https://.";
+          next.urlExterne = "URL invalide : utilisez http:// ou https://.";
         }
       }
     }
@@ -246,7 +247,7 @@ function BibliothequeForm({
 
         {initial?.statut === "ARCHIVEE" && (
           <p className="text-sm text-warning-600 dark:text-warning-400">
-            Bibliothèque archivée — utilisez le bouton Désarchiver sur la carte
+            Bibliothèque archivée : utilisez le bouton Désarchiver sur la carte
             pour la réactiver.
           </p>
         )}
@@ -286,6 +287,8 @@ export default function BibliothequesPage() {
     null
   );
   const [desarchiveCible, setDesarchiveCible] =
+    useState<MockBibliotheque | null>(null);
+  const [suppressionCible, setSuppressionCible] =
     useState<MockBibliotheque | null>(null);
 
   const refresh = useCallback(async () => {
@@ -387,6 +390,18 @@ export default function BibliothequesPage() {
     );
     setDesarchiveCible(null);
   }, [desarchiveCible, refresh]);
+
+  const confirmerSuppression = useCallback(async () => {
+    if (!suppressionCible) return;
+    const result = await deleteLibraryPersisted(suppressionCible.id);
+    if (!result.ok) {
+      toast.error(result.error);
+      return;
+    }
+    await refresh();
+    toast.success(`« ${suppressionCible.nom} » supprimée définitivement.`);
+    setSuppressionCible(null);
+  }, [suppressionCible, refresh]);
 
   return (
     <div className="space-y-6">
@@ -518,7 +533,7 @@ export default function BibliothequesPage() {
                 {b.type === "EXTERNE" && (
                   <div className="mt-4 space-y-2">
                     <p className="text-sm italic text-gray-500 dark:text-gray-400">
-                      Volume non recensé — catalogue hébergé à l&apos;extérieur
+                      Volume non recensé, catalogue hébergé à l&apos;extérieur
                     </p>
                     {b.urlExterne && (
                       <>
@@ -561,14 +576,24 @@ export default function BibliothequesPage() {
                       <IconeToggleArchive archivage />
                     </button>
                   ) : (
-                    <button
-                      type="button"
-                      title="Désarchiver"
-                      onClick={() => setDesarchiveCible(b)}
-                      className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 ring-1 ring-gray-200 transition hover:bg-gray-50 hover:text-success-500 dark:ring-gray-700 dark:hover:bg-white/5"
-                    >
-                      <IconeToggleArchive archivage={false} />
-                    </button>
+                    <>
+                      <button
+                        type="button"
+                        title="Désarchiver"
+                        onClick={() => setDesarchiveCible(b)}
+                        className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 ring-1 ring-gray-200 transition hover:bg-gray-50 hover:text-success-500 dark:ring-gray-700 dark:hover:bg-white/5"
+                      >
+                        <IconeToggleArchive archivage={false} />
+                      </button>
+                      <button
+                        type="button"
+                        title="Supprimer définitivement"
+                        onClick={() => setSuppressionCible(b)}
+                        className="flex h-10 w-10 items-center justify-center rounded-lg text-gray-500 ring-1 ring-gray-200 transition hover:bg-gray-50 hover:text-error-500 dark:ring-gray-700 dark:hover:bg-white/5"
+                      >
+                        <TrashBinIcon className="size-5" />
+                      </button>
+                    </>
                   )}
                 </div>
               </div>
@@ -605,7 +630,7 @@ export default function BibliothequesPage() {
           archiveCible ? (
             <>
               « {archiveCible.nom} » passera au statut{" "}
-              <strong>ARCHIVEE</strong> — masquée du catalogue utilisateur. Les
+              <strong>ARCHIVEE</strong>, masquée du catalogue utilisateur. Les
               livres liés ne sont pas supprimés.
             </>
           ) : null
@@ -623,13 +648,31 @@ export default function BibliothequesPage() {
           desarchiveCible ? (
             <>
               « {desarchiveCible.nom} » passera au statut{" "}
-              <strong>ACTIVE</strong> — de nouveau visible dans le catalogue
+              <strong>ACTIVE</strong>, de nouveau visible dans le catalogue
               utilisateur.
             </>
           ) : null
         }
         confirmLabel="Désarchiver"
         variant="primary"
+      />
+
+      <ConfirmDialog
+        isOpen={suppressionCible != null}
+        onClose={() => setSuppressionCible(null)}
+        onConfirm={confirmerSuppression}
+        title="Supprimer définitivement cette bibliothèque ?"
+        description={
+          suppressionCible ? (
+            <>
+              « {suppressionCible.nom} » sera supprimée définitivement.
+              Seules les liaisons avec les livres sont retirées, les livres
+              eux-mêmes ne sont jamais supprimés. Action irréversible.
+            </>
+          ) : null
+        }
+        confirmLabel="Supprimer"
+        variant="danger"
       />
     </div>
   );

@@ -27,6 +27,7 @@ export const adminNavSections: AdminNavSection[] = [
       { name: "Administrateurs", path: "/admin/administrateurs" },
       { name: "Abonnements", path: "/admin/abonnements" },
       { name: "Paiements", path: "/admin/paiements" },
+      { name: "Établissements", path: "/admin/etablissements" },
     ],
   },
   {
@@ -43,6 +44,7 @@ export const adminNavSections: AdminNavSection[] = [
     items: [
       { name: "Notifications", path: "/admin/notifications" },
       { name: "Statistiques", path: "/admin/statistiques" },
+      { name: "Performance", path: "/admin/performance" },
     ],
   },
 ];

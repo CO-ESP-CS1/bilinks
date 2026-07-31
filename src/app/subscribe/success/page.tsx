@@ -62,7 +62,7 @@ export default function SubscribeSuccessPage() {
             Paiement réussi !
           </h1>
           <p className="mt-2 text-center text-base text-zinc-500">
-            {formatXaf(plan.price)} F CFA — {plan.name}
+            {plan.name} · {formatXaf(plan.price)}
           </p>
 
           <div className="mx-auto mt-6 max-w-sm rounded-3xl border border-zinc-100 bg-white p-6 shadow-sm">

@@ -519,7 +519,7 @@ function ModifierLivreForm({
           <div>
             <Label>Remplacer le fichier du livre</Label>
             <p className="mb-2 text-[11px] text-gray-400">
-              Optionnel — champ <code>file</code> (PDF, EPUB, MOBI, max 50 Mo).
+              Optionnel, champ <code>file</code> (PDF, EPUB, MOBI, max 50 Mo).
             </p>
             <BookFileUploader
               value={fichierLivre}

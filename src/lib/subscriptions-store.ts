@@ -10,7 +10,7 @@ import { messageFromApiError } from "@/lib/api/errors";
 import { unwrapListData } from "@/lib/api/pagination";
 import { ADMIN_ROUTES } from "@/lib/api/routes";
 import { validateSubscriptionCancelRaison } from "@/lib/admin/validators";
-import type { PlanType, StatutAbonnement } from "@/types/admin";
+import type { PlanType, StatutAbonnement, TypeRenouvellement } from "@/types/admin";
 
 const SUBS_KEY = "bibliotech_subscriptions";
 const LIST_LIMIT = 100;
@@ -57,6 +57,7 @@ export function getAllSubscriptions(): MockAbonnement[] {
 export async function fetchSubscriptionsPersisted(options?: {
   statut?: StatutAbonnement;
   plan?: PlanType;
+  type_renouvellement?: TypeRenouvellement;
   page?: number;
 }): Promise<MockAbonnement[]> {
   if (!isApiConfigured()) {
@@ -72,6 +73,9 @@ export async function fetchSubscriptionsPersisted(options?: {
     params.set("limit", String(LIST_LIMIT));
     if (options?.statut) params.set("statut", options.statut);
     if (options?.plan) params.set("plan", options.plan);
+    if (options?.type_renouvellement) {
+      params.set("type_renouvellement", options.type_renouvellement);
+    }
 
     const payload = await apiRequest<AdminSubscriptionsListResponse>(
       `${ADMIN_ROUTES.subscriptions.list}?${params.toString()}`

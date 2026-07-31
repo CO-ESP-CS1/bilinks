@@ -16,6 +16,8 @@ type PaymentMethodProps = {
   phone: string;
   onSelect: () => void;
   onPhoneChange: (value: string) => void;
+  /** Couleur d'accent — "violet" (tunnel Particulier, défaut) ou "blue" (tunnel Établissement, #004AC6). */
+  accent?: "violet" | "blue";
 };
 
 export function PaymentMethod({
@@ -28,6 +30,7 @@ export function PaymentMethod({
   phone,
   onSelect,
   onPhoneChange,
+  accent = "violet",
 }: PaymentMethodProps) {
   const inputProvider = provider === "MTN" ? "MTN" : "AIRTEL";
   const phoneError = getCongoPhoneProviderError(phone, inputProvider);
@@ -37,7 +40,9 @@ export function PaymentMethod({
       className={cn(
         "rounded-2xl border-[1.5px] p-4 transition-all duration-150",
         selected
-          ? "border-violet-600 bg-violet-500/[0.02] shadow-[0_4px_16px_rgba(124,58,237,0.12)]"
+          ? accent === "blue"
+            ? "border-[#004AC6] bg-[#004AC6]/[0.02] shadow-[0_4px_16px_rgba(0,74,198,0.12)]"
+            : "border-violet-600 bg-violet-500/[0.02] shadow-[0_4px_16px_rgba(124,58,237,0.12)]"
           : "border-zinc-200 bg-white"
       )}
     >
@@ -45,7 +50,11 @@ export function PaymentMethod({
         <span
           className={cn(
             "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-[1.5px]",
-            selected ? "border-violet-600 bg-violet-600" : "border-zinc-300"
+            selected
+              ? accent === "blue"
+                ? "border-[#004AC6] bg-[#004AC6]"
+                : "border-violet-600 bg-violet-600"
+              : "border-zinc-300"
           )}
         >
           {selected && <span className="h-2 w-2 rounded-full bg-white" />}
@@ -70,15 +79,15 @@ export function PaymentMethod({
             className="overflow-hidden"
           >
             <div className="mt-3 border-t border-zinc-100 pt-3">
-              <PhoneInput value={phone} onChange={onPhoneChange} provider={inputProvider} />
+              <PhoneInput value={phone} onChange={onPhoneChange} provider={inputProvider} accent={accent} />
               {phoneError ? (
                 <p className="mt-2 text-xs text-red-500">{phoneError}</p>
               ) : (
               <p className="mt-2 flex items-center gap-1 text-xs text-zinc-400">
                 <Info className="h-3.5 w-3.5 shrink-0" />
                 {provider === "MTN"
-                  ? "Numéro MTN Mobile Money — commence par 06"
-                  : "Numéro Airtel Money — commence par 05"}
+                  ? "Numéro MTN Mobile Money : commence par 06"
+                  : "Numéro Airtel Money : commence par 05"}
               </p>
               )}
             </div>

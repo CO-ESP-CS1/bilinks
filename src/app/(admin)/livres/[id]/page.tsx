@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useParams, notFound } from "next/navigation";
 import { Breadcrumb } from "@/components/Breadcrumb";
 import type { MockLivre } from "@/lib/mock-data";
-import { fetchLivres, getLivreById } from "@/lib/livres-store";
+import { fetchLivreByIdPersisted } from "@/lib/livres-store";
 import { PencilIcon } from "@/icons";
 import { BookCover } from "@/components/livres/BookCover";
 import { formatMaisonEdition } from "@/lib/catalog-display";
@@ -18,8 +18,8 @@ export default function LivreDetailPage() {
 
   useEffect(() => {
     const load = async () => {
-      await fetchLivres();
-      setLivre(getLivreById(id));
+      const result = await fetchLivreByIdPersisted(id);
+      setLivre(result);
       setLoaded(true);
     };
     void load();

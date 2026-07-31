@@ -10,6 +10,7 @@ import {
 import {
   BellIcon,
   BoltIcon,
+  BoxIcon,
   ChatIcon,
   DocsIcon,
   DollarLineIcon,
@@ -45,6 +46,8 @@ function iconForItem(item: AdminNavItem): React.ReactNode {
       return <ShootingStarIcon />;
     case "/admin/paiements":
       return <DollarLineIcon />;
+    case "/admin/etablissements":
+      return <BoxIcon />;
     case "/admin/bibliotheques":
       return <BoxCubeIcon />;
     case "/admin/videos-educatives":
@@ -56,6 +59,8 @@ function iconForItem(item: AdminNavItem): React.ReactNode {
     case "/admin/notifications":
       return <BellIcon />;
     case "/admin/statistiques":
+      return <PieChartIcon />;
+    case "/admin/performance":
       return <PieChartIcon />;
     default:
       return <GridIcon />;

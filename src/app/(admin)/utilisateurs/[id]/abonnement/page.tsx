@@ -165,7 +165,7 @@ export default function UtilisateurAbonnementPage() {
             Abonnement personnel
           </h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-            {nomComplet} — {utilisateur.email}
+            {nomComplet} · {utilisateur.email}
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
@@ -337,7 +337,7 @@ export default function UtilisateurAbonnementPage() {
                   >
                     <div>
                       <p className="font-medium text-gray-800 dark:text-white/90">
-                        {getPlanLabel(p.plan)} — {formatXaf(p.montant)}
+                        {getPlanLabel(p.plan)} · {formatXaf(p.montant)}
                       </p>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         {apiMode

@@ -51,7 +51,7 @@ export default function AccountSettingsPage() {
     if (Object.keys(next).length > 0) return;
 
     if (!apiMode) {
-      toast.error("API non configurée — impossible de modifier le mot de passe.");
+      toast.error("API non configurée : impossible de modifier le mot de passe.");
       return;
     }
     if (!apiSessionReady) {
@@ -188,7 +188,7 @@ export default function AccountSettingsPage() {
         </p>
         <ul className="mt-4 space-y-3 text-sm text-gray-600 dark:text-gray-400">
           <li className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-gray-100 px-4 py-3 dark:border-white/[0.06]">
-            <span>Navigateur actuel — session active</span>
+            <span>Navigateur actuel · session active</span>
             <span className="text-theme-xs text-success-500">En ligne</span>
           </li>
         </ul>

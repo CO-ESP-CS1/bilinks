@@ -1200,7 +1200,7 @@ export default function DefisPage() {
                 badgeForm.iconeFile &&
                 badgeForm.iconeFile.size > BADGE_ICONE_MAX_BYTES
               ) {
-                toast.error("Icône trop volumineuse — taille maximale 5 Mo.");
+                toast.error("Icône trop volumineuse : taille maximale 5 Mo.");
                 return;
               }
               setBadgeSubmitting(true);
@@ -1237,7 +1237,7 @@ export default function DefisPage() {
                 }
                 toast.success(
                   apiMode && result.badge.icone
-                    ? "Badge créé — icône hébergée sur Cloudinary."
+                    ? "Badge créé, icône hébergée sur Cloudinary."
                     : "Badge créé."
                 );
               }
@@ -1472,7 +1472,7 @@ export default function DefisPage() {
         {participantsMeta && participantsMeta.total_pages > 1 && (
           <div className="mt-4 flex items-center justify-between gap-3">
             <span className="text-sm text-gray-500 dark:text-gray-400">
-              Page {participantsMeta.page} / {participantsMeta.total_pages} —{" "}
+              Page {participantsMeta.page} / {participantsMeta.total_pages} ·{" "}
               {participantsMeta.total} participant
               {participantsMeta.total > 1 ? "s" : ""}
             </span>

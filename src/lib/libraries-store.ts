@@ -130,7 +130,7 @@ export async function createLibraryPersisted(input: {
       };
     }
     if (!isValidLibraryUrl(url)) {
-      return { ok: false, error: "URL invalide — utilisez http:// ou https://." };
+      return { ok: false, error: "URL invalide : utilisez http:// ou https://." };
     }
   }
 
@@ -221,7 +221,7 @@ export async function updateLibraryPersisted(
           return { ok: false, error: "L'URL externe est obligatoire." };
         }
         if (!isValidLibraryUrl(url)) {
-          return { ok: false, error: "URL invalide — utilisez http:// ou https://." };
+          return { ok: false, error: "URL invalide : utilisez http:// ou https://." };
         }
         body.url_externe = url;
         hasField = true;
@@ -312,6 +312,34 @@ export async function unarchiveLibraryPersisted(
   next[idx] = { ...next[idx]!, statut: "ACTIVE" };
   setCache(next);
   return { ok: true, statut: "ACTIVE" };
+}
+
+export async function deleteLibraryPersisted(
+  id: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (isApiConfigured()) {
+    try {
+      await apiRequest<{ id: string }>(ADMIN_ROUTES.libraries.byId(id), {
+        method: "DELETE",
+      });
+      await fetchLibrariesPersisted();
+      return { ok: true };
+    } catch (err) {
+      return {
+        ok: false,
+        error: messageFromApiError(err, "Suppression impossible."),
+      };
+    }
+  }
+
+  const rows = ensureLibraries();
+  const idx = rows.findIndex((b) => b.id === id);
+  if (idx < 0) return { ok: false, error: "Bibliothèque introuvable." };
+  if (rows[idx]!.statut !== "ARCHIVEE") {
+    return { ok: false, error: "Seule une bibliothèque archivée peut être supprimée." };
+  }
+  setCache(rows.filter((b) => b.id !== id));
+  return { ok: true };
 }
 
 export async function addBooksToLibraryPersisted(

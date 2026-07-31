@@ -11,8 +11,17 @@ export type AdminChannel = {
   description: string | null;
   thumbnail_url: string | null;
   actif: boolean;
+  max_videos: number | null;
   last_synced_at: string | null;
   nb_videos: number;
+};
+
+export type ResolvedChannel = {
+  channel_id: string;
+  nom: string;
+  description: string;
+  thumbnail_url: string | null;
+  subscriber_count: number | null;
 };
 
 export type AdminVideo = {
@@ -62,15 +71,55 @@ export async function fetchChannels(): Promise<ApiResult<AdminChannel[]>> {
   }
 }
 
-export async function createChannel(
-  payload: CreateChannelPayload
-): Promise<ApiResult<{ id: string; nom: string }>> {
+export async function resolveChannels(
+  q: string
+): Promise<ApiResult<ResolvedChannel[]>> {
   if (!isApiConfigured()) return notConfigured();
   try {
-    const data = await apiRequest<{ id: string; nom: string }>(
-      ADMIN_ROUTES.youtube.createChannel,
-      { method: "POST", body: JSON.stringify(payload) }
+    const payload = await apiRequest<{ data: ResolvedChannel[] }>(
+      ADMIN_ROUTES.youtube.resolveChannel(q)
     );
+    return { ok: true, data: payload.data };
+  } catch (err) {
+    return { ok: false, error: messageFromApiError(err) };
+  }
+}
+
+export async function createChannel(
+  payload: CreateChannelPayload
+): Promise<ApiResult<{ id: string; nom: string; videos_importees: number }>> {
+  if (!isApiConfigured()) return notConfigured();
+  try {
+    const data = await apiRequest<{
+      id: string;
+      nom: string;
+      videos_importees: number;
+    }>(ADMIN_ROUTES.youtube.createChannel, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+    return { ok: true, data };
+  } catch (err) {
+    return { ok: false, error: messageFromApiError(err) };
+  }
+}
+
+export async function updateChannelMaxVideos(
+  id: string,
+  maxVideos: number
+): Promise<
+  ApiResult<{ id: string; max_videos: number | null; upserted: number }>
+> {
+  if (!isApiConfigured()) return notConfigured();
+  try {
+    const data = await apiRequest<{
+      id: string;
+      max_videos: number | null;
+      upserted: number;
+    }>(ADMIN_ROUTES.youtube.updateChannel(id), {
+      method: "PATCH",
+      body: JSON.stringify({ max_videos: maxVideos }),
+    });
     return { ok: true, data };
   } catch (err) {
     return { ok: false, error: messageFromApiError(err) };

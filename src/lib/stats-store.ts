@@ -5,6 +5,8 @@ import {
   mockTopLivres,
 } from "@/lib/mock-data";
 import type {
+  AdminReadingHabitsApi,
+  AdminReadingHabitsPeriode,
   AdminStatsActivityItemApi,
   AdminStatsActivityPeriode,
   AdminStatsActivityResponse,
@@ -288,6 +290,9 @@ function formatRelativeTimeFr(iso: string): string {
 }
 
 function displayNameFromActivity(row: AdminStatsActivityItemApi): string {
+  if (row.source === "etablissement") {
+    return row.nom_etablissement || row.email_contact || "Établissement";
+  }
   const name = [row.prenom, row.nom].filter(Boolean).join(" ").trim();
   return name || row.email || "Utilisateur";
 }
@@ -304,7 +309,7 @@ function mapActivityItem(row: AdminStatsActivityItemApi): DashboardActivityItem 
   }
 
   const montant = new Intl.NumberFormat("fr-FR").format(row.montant ?? 0);
-  const devise = row.devise ?? "XOF";
+  const devise = row.devise ?? "XAF";
   const operateur = row.operateur?.trim() || "Mobile Money";
   const statut = row.statut ?? "EN_ATTENTE";
   const statutLabel =
@@ -317,7 +322,7 @@ function mapActivityItem(row: AdminStatsActivityItemApi): DashboardActivityItem 
   return {
     id: `paiement-${row.id ?? row.date}`,
     type: "paiement",
-    message: `Paiement ${operateur} ${statutLabel} — ${name} (${montant} ${devise})`,
+    message: `Paiement ${operateur} ${statutLabel} de ${name} (${montant} ${devise})`,
     temps: formatRelativeTimeFr(row.date),
     statutPaiement: statut,
   };
@@ -408,6 +413,41 @@ export async function fetchStatsUsers(
     };
   } catch {
     return emptyStatsUsersView();
+  }
+}
+
+/**
+ * Habitudes de lecture globales — GET /admin/stats/reading-habits.
+ */
+export async function fetchReadingHabits(
+  periode: AdminReadingHabitsPeriode = "30j"
+): Promise<AdminReadingHabitsApi | null> {
+  if (!isApiConfigured() || !isAdminListApiReady()) return null;
+
+  try {
+    return await apiRequest<AdminReadingHabitsApi>(
+      `${ADMIN_ROUTES.stats.readingHabits}?periode=${periode}`
+    );
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Habitudes de lecture d'un utilisateur — GET /admin/users/:id/reading-habits.
+ */
+export async function fetchUserReadingHabits(
+  userId: string,
+  periode: AdminReadingHabitsPeriode = "30j"
+): Promise<AdminReadingHabitsApi | null> {
+  if (!isApiConfigured() || !isAdminListApiReady()) return null;
+
+  try {
+    return await apiRequest<AdminReadingHabitsApi>(
+      `${ADMIN_ROUTES.users.readingHabits(userId)}?periode=${periode}`
+    );
+  } catch {
+    return null;
   }
 }
 
