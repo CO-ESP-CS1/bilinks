@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 export type BookCoverVariant =
   | "grid"
@@ -65,6 +65,11 @@ export function BookCover({
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const styles = variantStyles[variant];
+
+  useEffect(() => {
+    setLoaded(false);
+    setError(false);
+  }, [src]);
   const roundClass =
     rounded === "none"
       ? ""
