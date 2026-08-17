@@ -276,7 +276,11 @@ function ModifierLivreForm({
     if (storeError?.match(/URL/i)) next.urlExterne = storeError;
     if (storeError?.match(/année/i)) next.annee = storeError;
     if (storeError?.match(/pages/i)) next.pages = storeError;
-    if (storeError && !Object.values(next).some(Boolean)) {
+    // Toujours notifier par toast, même quand l'erreur est aussi routée vers un
+    // champ précis — ce champ peut être masqué selon le type de livre (ex. la
+    // section "Fichier" n'existe pas pour un livre EXTERNE), auquel cas
+    // l'utilisateur ne verrait sinon rien du tout.
+    if (storeError) {
       toast.error(storeError);
     }
     setErrors(next);
@@ -632,22 +636,31 @@ function ModifierLivreForm({
         <button
           type="submit"
           disabled={submitting}
-          className="inline-flex items-center gap-2 rounded-xl bg-brand-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-500/25 transition-all duration-200 hover:bg-brand-600 hover:shadow-xl hover:shadow-brand-500/30 active:scale-[0.97] disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-xl bg-brand-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-brand-500/25 transition-all duration-200 hover:bg-brand-600 hover:shadow-xl hover:shadow-brand-500/30 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:shadow-lg"
         >
-          <svg
-            className="h-4 w-4"
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
-            strokeWidth={2.5}
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M4.5 12.75l6 6 9-13.5"
-            />
-          </svg>
-          Enregistrer
+          {submitting ? (
+            <>
+              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+              Enregistrement…
+            </>
+          ) : (
+            <>
+              <svg
+                className="h-4 w-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2.5}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M4.5 12.75l6 6 9-13.5"
+                />
+              </svg>
+              Enregistrer
+            </>
+          )}
         </button>
       </div>
     </form>

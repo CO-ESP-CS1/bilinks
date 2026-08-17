@@ -263,7 +263,13 @@ export default function LivresPage() {
 
   useEffect(() => {
     void refresh();
-  }, [refresh]);
+    // Chargement initial uniquement — le rechargement sur changement de filtre
+    // est déjà géré par l'effet ci-dessous. `refresh` ne doit pas être en
+    // dépendance ici : sa référence change à chaque fetch (via `categories`,
+    // recréé par `getAllCategories()`), ce qui provoquait une boucle infinie
+    // de rechargement (et donc l'interface qui clignote en continu).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!apiMode) return;
@@ -708,18 +714,18 @@ function GrilleView({
               className="!rounded-t-2xl"
             />
             {/* Overlay actions au hover */}
-            <div className="absolute inset-0 flex items-end justify-center bg-gradient-to-t from-black/60 via-black/20 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+            <div className="pointer-events-none absolute inset-0 flex items-end justify-center bg-gradient-to-t from-black/60 via-black/20 to-transparent opacity-0 transition-opacity duration-300 group-hover:pointer-events-auto group-hover:opacity-100">
               <div className="flex gap-2 pb-4">
                 <button
                   onClick={() => onVoir(livre.id)}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-gray-700 backdrop-blur-sm transition hover:bg-white"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/95 text-gray-700 transition hover:bg-white"
                   title="Voir"
                 >
                   <EyeIcon className="size-4" />
                 </button>
                 <button
                   onClick={() => onEditer(livre.id)}
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-gray-700 backdrop-blur-sm transition hover:bg-white"
+                  className="flex h-9 w-9 items-center justify-center rounded-full bg-white/95 text-gray-700 transition hover:bg-white"
                   title="Modifier"
                 >
                   <PencilIcon className="size-4" />
@@ -727,7 +733,7 @@ function GrilleView({
                 {livre.statut !== "ARCHIVE" && (
                   <button
                     onClick={() => onArchiver(livre)}
-                    className="flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-gray-700 backdrop-blur-sm transition hover:bg-white"
+                    className="flex h-9 w-9 items-center justify-center rounded-full bg-white/95 text-gray-700 transition hover:bg-white"
                     title="Archiver"
                   >
                     <BoxCubeIcon className="size-4" />
@@ -738,12 +744,12 @@ function GrilleView({
             {/* Badge statut */}
             <div className="absolute left-3 top-3">
               {livre.statut === "PUBLIE" ? (
-                <span className="inline-flex items-center gap-1 rounded-full bg-success-50/90 px-2.5 py-1 text-xs font-medium text-success-700 backdrop-blur-sm">
+                <span className="inline-flex items-center gap-1 rounded-full bg-success-50 px-2.5 py-1 text-xs font-medium text-success-700">
                   <span className="h-1.5 w-1.5 rounded-full bg-success-500" />
                   Publié
                 </span>
               ) : (
-                <span className="inline-flex items-center gap-1 rounded-full bg-gray-100/90 px-2.5 py-1 text-xs font-medium text-gray-600 backdrop-blur-sm">
+                <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600">
                   <span className="h-1.5 w-1.5 rounded-full bg-gray-400" />
                   Archivé
                 </span>
@@ -751,7 +757,7 @@ function GrilleView({
             </div>
             {/* Note */}
             {livre.noteMoyenne != null && (
-              <div className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-amber-50/90 px-2 py-1 backdrop-blur-sm">
+              <div className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-amber-50 px-2 py-1">
                 <svg className="h-3 w-3 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                 </svg>
@@ -1039,6 +1045,12 @@ function AjouterLivreForm({
     if (storeError?.match(/pages/i)) next.pages = storeError;
     if (storeError?.match(/titre/i)) next.titre = storeError;
     if (storeError?.match(/maison/i)) next.titre = storeError;
+    // Toujours notifier par toast : le champ ciblé par l'erreur peut être masqué
+    // selon le type de livre (ex. section "Fichier" absente pour un livre
+    // EXTERNE), auquel cas l'utilisateur ne verrait sinon rien du tout.
+    if (storeError) {
+      toast.error(storeError);
+    }
     setErrors(next);
     return !storeError;
   }, [

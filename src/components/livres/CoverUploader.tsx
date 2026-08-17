@@ -36,7 +36,7 @@ export function CoverUploader({ value, onChange, bookTitle = "Aperçu" }: CoverU
         setMeta(result);
         onChange(result.dataUrl, result);
         toast.success(
-          `Couverture optimisée (${result.width}×${result.height}, ${formatCoverSize(result.bytesApprox)})`
+          `Couverture prête (${result.width}×${result.height}, ${formatCoverSize(result.bytesApprox)}) — cliquez sur « Enregistrer » pour l'appliquer.`
         );
       } catch (err) {
         toast.error(formatUserFacingError(err, "Impossible de traiter cette image."));
@@ -83,8 +83,16 @@ export function CoverUploader({ value, onChange, bookTitle = "Aperçu" }: CoverU
                 rounded="xl"
                 hoverZoom
                 showShine
-                className="shadow-xl shadow-brand-900/15 ring-1 ring-black/5 dark:ring-white/10"
+                className={`shadow-xl shadow-brand-900/15 ring-1 dark:ring-white/10 ${meta ? "ring-2 ring-warning-400 dark:ring-warning-500" : "ring-black/5"}`}
               />
+              {meta && (
+                <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-warning-500 px-2.5 py-1 text-[10px] font-semibold text-white shadow-md">
+                  <svg className="size-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m0 3.75h.008M10.29 3.86L1.82 18a1.5 1.5 0 001.29 2.25h17.78a1.5 1.5 0 001.29-2.25L13.71 3.86a1.5 1.5 0 00-2.42 0z" />
+                  </svg>
+                  Non enregistrée
+                </span>
+              )}
               <div className="absolute inset-0 flex items-center justify-center gap-2 rounded-xl bg-black/50 opacity-0 transition-opacity duration-300 group-hover:opacity-100">
                 <button
                   type="button"
@@ -107,9 +115,13 @@ export function CoverUploader({ value, onChange, bookTitle = "Aperçu" }: CoverU
                   </svg>
                 </button>
               </div>
-              {meta && (
+              {meta ? (
+                <p className="mt-2 text-center text-[11px] font-medium text-warning-600 dark:text-warning-400">
+                  {meta.width}×{meta.height} · {formatCoverSize(meta.bytesApprox)} · cliquez sur « Enregistrer » pour appliquer
+                </p>
+              ) : (
                 <p className="mt-2 text-center text-[11px] text-gray-500 dark:text-gray-400">
-                  {meta.width}×{meta.height} · {formatCoverSize(meta.bytesApprox)} · prêt mobile
+                  Couverture actuelle
                 </p>
               )}
             </div>
