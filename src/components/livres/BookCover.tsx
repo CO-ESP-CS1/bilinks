@@ -95,6 +95,8 @@ export function BookCover({
         <img
           src={src}
           alt={title ? `Couverture de ${title}` : "Couverture"}
+          loading="eager"
+          fetchPriority="high"
           className={`${styles.img} transition-all duration-500 ${
             loaded ? "opacity-100 scale-100" : "opacity-0 scale-[1.02]"
           } ${hoverZoom ? "group-hover:scale-105" : ""}`}
