@@ -4,10 +4,12 @@ import React, {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useLayoutEffect,
   useMemo,
   useState,
 } from "react";
+import { fetchSubscribePlans } from "@/lib/subscribe/api";
 import type { PaymentProvider, SubscribePlan, SubscribePlanId } from "@/lib/subscribe/plans";
 import { getPlanById } from "@/lib/subscribe/plans";
 import { subscribeStorage } from "@/lib/subscribe/storage";
@@ -55,6 +57,28 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
   const [provider, setProvider] = useState<PaymentProvider | null>(null);
   const [phone, setPhone] = useState<string | null>(null);
   const [transactionId, setTransactionIdState] = useState<string | null>(null);
+  /** Prix réels côté serveur, par plan (source de vérité pour l'affichage). */
+  const [apiPrices, setApiPrices] = useState<Record<string, number>>({});
+
+  // Les prix sont administrables : les constantes locales ne servent que de
+  // libellés/fallback. Sans cette récupération, les étapes 2-4 réafficheraient
+  // l'ancien prix codé en dur alors que le débit se fait au prix du serveur.
+  useEffect(() => {
+    let cancelled = false;
+    fetchSubscribePlans()
+      .then((plans) => {
+        if (cancelled) return;
+        const prices: Record<string, number> = {};
+        for (const p of plans) prices[p.plan] = Number(p.prix);
+        setApiPrices(prices);
+      })
+      .catch(() => {
+        /* fallback : prix locaux */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const hydrate = useCallback(() => {
     const stored = readStorageState();
@@ -107,10 +131,17 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     setTransactionIdState(id);
   }, []);
 
+  const resolvedPlan = useMemo(() => {
+    const base = getPlanById(planId);
+    if (!base) return null;
+    const apiPrice = apiPrices[base.id];
+    return apiPrice != null ? { ...base, price: apiPrice } : base;
+  }, [planId, apiPrices]);
+
   const value = useMemo(
     () => ({
       isHydrated,
-      plan: getPlanById(planId),
+      plan: resolvedPlan,
       planId,
       planApiId,
       token,
@@ -127,6 +158,7 @@ export function SubscriptionProvider({ children }: { children: React.ReactNode }
     }),
     [
       isHydrated,
+      resolvedPlan,
       planId,
       planApiId,
       token,
