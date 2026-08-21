@@ -222,7 +222,7 @@ function SubscribePageContent() {
           <PoweredByPawapay />
         </div>
         <p className="mb-4 mt-2 text-center text-xs text-zinc-300">
-          Conditions · Confidentialité
+          Produit de BV GROUPE. RCCM: CG-BZV-01-2025-B12-00170. Tous droits réservés. © 2026
         </p>
       </div>
     </div>
